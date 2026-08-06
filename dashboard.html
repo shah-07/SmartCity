@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | Smart Urban Development</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Simple Dashboard Layout Styling */
+        /* FIX: Ensure the main outer flex container spans the full viewport height */
+        .full-height-container {
+            min-height: 100vh;
+        }
+
+        .sidebar {
+    width: 250px !important; /* FORCED WIDTH FIX */
+    min-width: 250px !important; /* ADD THIS: Prevent shrinking */
+    max-width: 250px !important; /* ADD THIS: Prevent expanding */
+    background-color: #2c3e50; /* Dark blue/gray */
+    padding-top: 20px;
+    flex-shrink: 0 !important; /* ADD THIS: Prevent flex shrinking */
+    /* Sidebar is a d-flex flex-column from the HTML, which is correct */
+}
+        .sidebar a {
+            color: #ecf0f1;
+            padding: 15px 20px;
+            text-decoration: none;
+            display: block;
+            border-bottom: 1px solid #34495e;
+        }
+        .sidebar a:hover, .sidebar .active {
+            background-color: #3498db; /* Bright blue highlight */
+            color: white;
+        }
+        /* FIX: Use .logout-link class (applied in the HTML) to push it to the bottom */
+        .logout-link {
+            margin-top: auto;
+        }
+
+        .main-content {
+            padding: 30px;
+        }
+        .feature-card {
+            min-height: 180px;
+            border-left: 5px solid #3498db;
+            transition: transform 0.2s;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+        }
+        .card-icon {
+            font-size: 2.5rem;
+            color: #3498db;
+        }
+    </style>
+</head>
+<body>
+
+<div class="d-flex full-height-container">
+    <div class="sidebar d-flex flex-column">
+        <h4 class="text-white text-center mb-4">Smart City Portal</h4>
+        <a href="dashboard.html" class="active"><i class="fas fa-th-large me-2"></i> Dashboard</a>
+        <a href="traffic.html"><i class="fas fa-car-side me-2"></i> Traffic Management</a>
+        <a href="parking.html"><i class="fas fa-parking me-2"></i> Smart Parking System</a>
+        <a href="energy.html"><i class="fas fa-bolt me-2"></i> Energy Monitoring</a>
+        <a href="pollution.html"><i class="fas fa-smog me-2"></i> Air Quality Monitoring</a>
+        <a href="emergency.html"><i class="fas fa-ambulance me-2"></i> Emergency Response</a>
+        <a href="index.html" class="logout-link" onclick="sessionStorage.removeItem('userRole');"><i class="fas fa-sign-out-alt me-2"></i> Logout</a>
+    </div>
+
+    <div class="main-content flex-grow-1">
+        <header class="mb-5 border-bottom pb-3 d-flex justify-content-between align-items-center">
+            <h1>Welcome to the Smart City Portal!</h1>
+            <span class="badge bg-primary fs-5" id="userRoleBadge">Role: Loading...</span>
+        </header>
+
+        <section id="dashboard-summary">
+            <h2 class="mb-4">System Overview</h2>
+            <div class="row g-4">
+                <div class="col-lg-4 col-md-6">
+                    <div class="card feature-card shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-car-side card-icon me-3"></i>
+                                <div>
+                                    <h5 class="card-title">Traffic Management</h5>
+                                    <p class="card-text text-muted">Monitor congestion & optimize routes (Table: TrafficData)</p>
+                                    <a href="traffic.html" class="btn btn-sm btn-outline-primary">View Details</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4 col-md-6">
+                    <div class="card feature-card shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-parking card-icon me-3"></i>
+                                <div>
+                                    <h5 class="card-title">Smart Parking System</h5>
+                                    <p class="card-text text-muted">Track spot availability & reservations (Tables: ParkingSpots, Reservations)</p>
+                                    <a href="parking.html" class="btn btn-sm btn-outline-primary">View Details</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4 col-md-6">
+                    <div class="card feature-card shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-bolt card-icon me-3"></i>
+                                <div>
+                                    <h5 class="card-title">Energy Monitoring</h5>
+                                    <p class="card-text text-muted">Analyse real-time consumption trends (Table: EnergyUsage)</p>
+                                    <a href="energy.html" class="btn btn-sm btn-outline-primary">View Details</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4 col-md-6">
+                    <div class="card feature-card shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-smog card-icon me-3"></i>
+                                <div>
+                                    <h5 class="card-title">Air Quality Monitoring (AI)</h5>
+                                    <p class="card-text text-muted">Predict pollution peaks & identify sources (Table: PollutionData)</p>
+                                    <a href="pollution.html" class="btn btn-sm btn-outline-primary">View Details</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4 col-md-6">
+                    <div class="card feature-card shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-ambulance card-icon me-3"></i>
+                                <div>
+                                    <h5 class="card-title">Emergency Response (AI+DB)</h5>
+                                    <p class="card-text text-muted">Log incidents & optimize response times (Tables: Incidents, ResponseTimes, etc.)</p>
+                                    <a href="emergency.html" class="btn btn-sm btn-outline-primary">View Details</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // Check if the user is authenticated with the backend
+    async function checkAuth() {
+        try {
+            const response = await fetch('auth_check.php');
+            const data = await response.json();
+            
+            if (!data.authenticated) {
+                window.location.href = 'index.html';
+                return;
+            }
+            
+            // Update the user role badge text
+            const roleText = data.role === 'admin' ? 'Admin (Management)' : 'Welcome Dear Citizen';
+            document.getElementById('userRoleBadge').textContent = `${roleText}`;
+            
+            // Also store in sessionStorage for consistency
+            sessionStorage.setItem('userRole', data.role);
+            sessionStorage.setItem('username', data.username);
+            
+        } catch (error) {
+            console.error('Auth check error:', error);
+            window.location.href = 'index.html';
+        }
+    }
+
+    // Update logout link
+    document.querySelector('.logout-link').addEventListener('click', async function(e) {
+        e.preventDefault();
+        try {
+            await fetch('logout.php');
+            sessionStorage.clear();
+            window.location.href = 'index.html';
+        } catch (error) {
+            console.error('Logout error:', error);
+            sessionStorage.clear();
+            window.location.href = 'index.html';
+        }
+    });
+
+    // Check authentication when page loads
+    checkAuth();
+</script>
+
+</body>
+</html>
