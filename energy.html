@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Energy Monitoring | Smart City Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <style>
+        /* General Layout Styles (Consistency) */
+        .sidebar {
+            height: 100vh;
+            background-color: #2c3e50;
+            padding-top: 20px;
+        }
+        .sidebar a {
+            color: #ecf0f1;
+            padding: 15px 20px;
+            text-decoration: none;
+            display: block;
+            border-bottom: 1px solid #34495e;
+        }
+        .sidebar a:hover, .sidebar .active {
+            background-color: #3498db;
+            color: white;
+        }
+        .main-content {
+            padding: 30px;
+        }
+        /* Specific Styles */
+        .table-section {
+            margin-bottom: 40px;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .action-buttons {
+            white-space: nowrap;
+        }
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        select:disabled {
+            background-color: #f8f9fa;
+            opacity: 1;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+
+<div class="d-flex">
+    <div class="sidebar d-flex flex-column" style="width: 250px;">
+        <h4 class="text-white text-center mb-4">Smart City Portal</h4>
+        <a href="dashboard.html"><i class="fas fa-th-large me-2"></i> Dashboard</a>
+        <a href="traffic.html"><i class="fas fa-car-side me-2"></i> Traffic Management</a>
+        <a href="parking.html"><i class="fas fa-parking me-2"></i> Smart Parking System</a>
+        <a href="energy.html" class="active"><i class="fas fa-bolt me-2"></i> Energy Monitoring</a>
+        <a href="pollution.html"><i class="fas fa-smog me-2"></i> Air Quality Monitoring</a>
+        <a href="emergency.html"><i class="fas fa-ambulance me-2"></i> Emergency Response</a>
+        <a href="index.html" class="mt-auto" onclick="sessionStorage.removeItem('userRole');"><i class="fas fa-sign-out-alt me-2"></i> Logout</a>
+    </div>
+
+    <div class="main-content flex-grow-1">
+        <header class="mb-5 border-bottom pb-3">
+            <h1>Energy Monitoring</h1>
+            <p class="lead text-muted">Monitor energy consumption data</p>
+        </header>
+
+        <section class="mb-5 p-4 border rounded shadow-sm bg-white">
+            <h2 class="h4 mb-3"><i class="fas fa-chart-line me-2 text-primary"></i>Monthly Consumption Trends by Energy Type</h2>
+            <div style="height: 300px;"><canvas id="energyChart"></canvas></div>
+            <p class="mt-3 text-center text-info">Visual representation of energy consumption over time</p>
+        </section>
+
+        <hr>
+
+        <!-- Energy Data Table -->
+        <section class="table-section">
+            <h2 class="h4 mb-4"><i class="fas fa-table me-2 text-primary"></i> Energy Consumption Data</h2>
+            
+            <div class="d-flex justify-content-between mb-3">
+                <div class="input-group" style="width: 350px;">
+                    <input type="text" class="form-control" placeholder="Search..." id="searchInput" onkeyup="filterTable()">
+                    <button class="btn btn-outline-secondary" type="button"><i class="fas fa-search"></i></button>
+                </div>
+
+                <button class="btn btn-success" id="btnAdd" data-bs-toggle="modal" data-bs-target="#addModal">
+                    <i class="fas fa-plus me-1"></i> Add New Record
+                </button>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Sensor ID</th>
+                            <th>Energy Type</th>
+                            <th>Timestamp</th>
+                            <th>Total Consumed Unit</th>
+                            <th>Last Recharged Date</th>
+                            <th>Last Recharged Amount</th>
+                            <th id="actionsHeader">Action Buttons</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+</div>
+
+<!-- Add Modal -->
+<div class="modal fade" id="addModal" tabindex="-1" aria-labelledby="addModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addModalLabel">Add Energy Record</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addForm">
+                    <div class="mb-3">
+                        <label class="form-label">Sensor ID *</label>
+                        <select id="addSensor" class="form-select" required></select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Energy Type *</label>
+                        <select id="addType" class="form-select" required disabled>
+                            <option value="">Select sensor first</option>
+                            <option value="Electricity">Electricity</option>
+                            <option value="Water">Water</option>
+                            <option value="Gas">Gas</option>
+                        </select>
+                        <div class="form-text">Energy type is automatically determined by the selected sensor</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Timestamp *</label>
+                        <input type="datetime-local" id="addTime" class="form-control" required 
+                            max="<?php echo date('Y-m-d\TH:i'); ?>">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Total Consumed Unit *</label>
+                        <input type="number" step="0.01" id="addUnit" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+    <label class="form-label">Last Recharged Date *</label>
+    <input type="date" id="addRecDate" class="form-control" required 
+           max="<?php echo date('Y-m-d'); ?>">
+</div>
+                    <div class="mb-3">
+                        <label class="form-label">Last Recharged Amount *</label>
+                        <input type="number" step="0.01" id="addRecAmt" class="form-control" required>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">Save Record</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editModalLabel">Edit Energy Record</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editForm">
+                    <input type="hidden" id="origSensor">
+                    <input type="hidden" id="origTime">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Sensor ID *</label>
+                        <select id="editSensor" class="form-select" required></select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Energy Type *</label>
+                        <select id="editType" class="form-select" required disabled>
+                            <option value="Electricity">Electricity</option>
+                            <option value="Water">Water</option>
+                            <option value="Gas">Gas</option>
+                        </select>
+                        <div class="form-text">Energy type is automatically determined by the selected sensor</div>
+                    </div>
+                   <div class="mb-3">
+    <label class="form-label">Timestamp *</label>
+    <input type="datetime-local" id="editTime" class="form-control" required 
+           max="<?php echo date('Y-m-d\TH:i'); ?>">
+</div>
+                    <div class="mb-3">
+                        <label class="form-label">Total Consumed Unit *</label>
+                        <input type="number" step="0.01" id="editUnit" class="form-control" required>
+                    </div>
+                   <div class="mb-3">
+    <label class="form-label">Last Recharged Date *</label>
+    <input type="date" id="editRecDate" class="form-control" required 
+           max="<?php echo date('Y-m-d'); ?>">
+</div>
+                    <div class="mb-3">
+                        <label class="form-label">Last Recharged Amount *</label>
+                        <input type="number" step="0.01" id="editRecAmt" class="form-control" required>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">Update Record</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    const API_PATH = 'api/energy';
+    let userRole = sessionStorage.getItem('userRole') || 'admin';
+
+    document.addEventListener('DOMContentLoaded', () => {
+        applyRolePermissions();
+        loadDropdowns();
+        loadReadings();
+        loadChart();
+    });
+
+    function applyRolePermissions() {
+        const btnAdd = document.getElementById('btnAdd');
+        const actionsHeader = document.getElementById('actionsHeader');
+        
+        // Admin: Show Add button and Actions header
+        if (userRole === 'admin') {
+            if (btnAdd) btnAdd.style.display = 'block';
+            if (actionsHeader) actionsHeader.style.display = 'table-cell';
+        } 
+        // Citizen: Hide Add button and Actions header
+        else if (userRole === 'citizen') {
+            if (btnAdd) btnAdd.style.display = 'none';
+            if (actionsHeader) actionsHeader.style.display = 'none';
+        }
+    }
+
+    async function loadReadings() {
+        try {
+            const res = await fetch(`${API_PATH}/readings.php`);
+            const data = await res.json();
+            const tbody = document.getElementById('tableBody');
+
+            if(data.error) {
+                tbody.innerHTML = `<tr><td colspan="7" class="text-danger text-center">${data.error}</td></tr>`;
+                return;
+            }
+
+            if(data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center">No records found.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = data.map(row => {
+                // UNIT LOGIC
+                let unitSuffix = '';
+                if(row.energyType === 'Electricity') unitSuffix = ' kWh';
+                else if(row.energyType === 'Water') unitSuffix = ' Liters';
+                else if(row.energyType === 'Gas') unitSuffix = ' Units';
+
+                // ACTION BUTTONS (Role Based)
+                let actions = '<span class="text-muted small">View Only</span>';
+                if(userRole === 'admin') {
+                    actions = `
+                        <div class="action-buttons">
+                            <button class="btn btn-sm btn-info text-white me-1" onclick='openEdit(${JSON.stringify(row)})'><i class="fas fa-edit me-1"></i> Edit</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteRec('${row.sensorID}', '${row.timestamp}')"><i class="fas fa-trash-alt me-1"></i> Delete</button>
+                        </div>
+                    `;
+                }
+
+                return `
+                <tr>
+                    <td><strong>${row.sensorID}</strong></td>
+                    <td>${row.energyType}</td>
+                    <td>${row.timestamp}</td>
+                    <td>${row.totalConsumedUnit} <b>${unitSuffix}</b></td>
+                    <td>${row.lastRechargedDate}</td>
+                    <td>${row.lastRechargedAmount}</td>
+                    <td>${actions}</td>
+                </tr>
+                `;
+            }).join('');
+        } catch(e) { console.error(e); }
+    }
+
+    async function loadDropdowns() {
+    const res = await fetch(`${API_PATH}/lists.php`);
+    const data = await res.json();
+    
+    // Create dropdown options with sensor type info
+    const opts = data.map(s => 
+        `<option value="${s.sensorID}" data-type="${s.type}">Sensor ${s.sensorID} (${s.originalType || s.type})</option>`
+    ).join('');
+    
+    document.getElementById('addSensor').innerHTML = opts;
+    document.getElementById('editSensor').innerHTML = opts;
+    
+    // Add event listeners for auto-filling energy type
+    setupSensorChangeListeners();
+}
+
+function setupSensorChangeListeners() {
+    // For Add form
+    document.getElementById('addSensor').addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        const energyType = selectedOption.getAttribute('data-type');
+        if (energyType) {
+            document.getElementById('addType').value = energyType;
+        }
+    });
+    
+    // For Edit form
+    document.getElementById('editSensor').addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        const energyType = selectedOption.getAttribute('data-type');
+        if (energyType) {
+            document.getElementById('editType').value = energyType;
+        }
+    });
+}
+    // --- FORMS ---
+    document.getElementById('addForm').onsubmit = async (e) => {
+    e.preventDefault();
+    
+    if (userRole === 'citizen') {
+        alert('Citizens cannot add energy records.');
+        return;
+    }
+    
+    // Validation 1: Timestamp cannot be future date
+    const timestampInput = document.getElementById('addTime').value;
+    const currentDateTime = new Date().toISOString().slice(0, 16); // YYYY-MM-DDThh:mm
+    if (new Date(timestampInput) > new Date()) {
+        alert('Error: Timestamp cannot be in the future.');
+        document.getElementById('addTime').focus();
+        return;
+    }
+    
+    // Validation 2: Last Recharged Date cannot be future date
+    const rechargeDateInput = document.getElementById('addRecDate').value;
+    const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    if (new Date(rechargeDateInput) > new Date()) {
+        alert('Error: Last Recharged Date cannot be in the future.');
+        document.getElementById('addRecDate').focus();
+        return;
+    }
+    
+    // Validation 3: Last Recharged Date cannot be after Timestamp
+    const timestampDate = new Date(timestampInput);
+    const rechargeDate = new Date(rechargeDateInput);
+    if (rechargeDate > timestampDate) {
+        alert('Error: Last Recharged Date cannot be after the Timestamp.');
+        document.getElementById('addRecDate').focus();
+        return;
+    }
+    
+    await apiCall(`${API_PATH}/readings.php`, 'POST', {
+        sensorID: document.getElementById('addSensor').value,
+        energyType: document.getElementById('addType').value,
+        timestamp: document.getElementById('addTime').value,
+        totalConsumedUnit: document.getElementById('addUnit').value,
+        lastRechargedDate: document.getElementById('addRecDate').value,
+        lastRechargedAmount: document.getElementById('addRecAmt').value
+    });
+    bootstrap.Modal.getInstance(document.getElementById('addModal')).hide();
+    loadReadings(); loadChart();
+};
+
+    document.getElementById('editForm').onsubmit = async (e) => {
+    e.preventDefault();
+    
+    if (userRole === 'citizen') {
+        alert('Citizens cannot edit energy records.');
+        return;
+    }
+    
+    // Validation 1: Timestamp cannot be future date
+    const timestampInput = document.getElementById('editTime').value;
+    const currentDateTime = new Date().toISOString().slice(0, 16);
+    if (new Date(timestampInput) > new Date()) {
+        alert('Error: Timestamp cannot be in the future.');
+        document.getElementById('editTime').focus();
+        return;
+    }
+    
+    // Validation 2: Last Recharged Date cannot be future date
+    const rechargeDateInput = document.getElementById('editRecDate').value;
+    const currentDate = new Date().toISOString().split('T')[0];
+    if (new Date(rechargeDateInput) > new Date()) {
+        alert('Error: Last Recharged Date cannot be in the future.');
+        document.getElementById('editRecDate').focus();
+        return;
+    }
+    
+    // Validation 3: Last Recharged Date cannot be after Timestamp
+    const timestampDate = new Date(timestampInput);
+    const rechargeDate = new Date(rechargeDateInput);
+    if (rechargeDate > timestampDate) {
+        alert('Error: Last Recharged Date cannot be after the Timestamp.');
+        document.getElementById('editRecDate').focus();
+        return;
+    }
+    
+    await apiCall(`${API_PATH}/readings.php`, 'PUT', {
+        originalSensorID: document.getElementById('origSensor').value,
+        originalTimestamp: document.getElementById('origTime').value,
+        sensorID: document.getElementById('editSensor').value,
+        energyType: document.getElementById('editType').value,
+        timestamp: document.getElementById('editTime').value,
+        totalConsumedUnit: document.getElementById('editUnit').value,
+        lastRechargedDate: document.getElementById('editRecDate').value,
+        lastRechargedAmount: document.getElementById('editRecAmt').value
+    });
+    bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
+    loadReadings(); loadChart();
+};
+    // --- HELPERS ---
+   window.openEdit = (r) => {
+    if (userRole === 'citizen') {
+        alert('Citizens cannot edit energy records.');
+        return;
+    }
+    
+    document.getElementById('origSensor').value = r.sensorID;
+    document.getElementById('origTime').value = r.timestamp;
+
+    // Set sensor selection
+    document.getElementById('editSensor').value = r.sensorID;
+    
+    // Trigger change event to auto-fill energy type
+    const event = new Event('change');
+    document.getElementById('editSensor').dispatchEvent(event);
+    
+    // If change event didn't work, set directly
+    if (!document.getElementById('editType').value) {
+        document.getElementById('editType').value = r.energyType;
+    }
+    
+    document.getElementById('editTime').value = r.timestamp.replace(' ', 'T');
+    document.getElementById('editUnit').value = r.totalConsumedUnit;
+    document.getElementById('editRecDate').value = r.lastRechargedDate;
+    document.getElementById('editRecAmt').value = r.lastRechargedAmount;
+    
+    new bootstrap.Modal(document.getElementById('editModal')).show();
+};
+    window.deleteRec = async (sid, ts) => {
+        if (userRole === 'citizen') {
+            alert('Citizens cannot delete energy records.');
+            return;
+        }
+        
+        if(confirm('Are you sure you want to delete this record?')) {
+            await apiCall(`${API_PATH}/readings.php?sensorID=${sid}&timestamp=${encodeURIComponent(ts)}`, 'DELETE');
+            loadReadings(); loadChart();
+        }
+    };
+
+    function filterTable() {
+        // Both admin and citizen can search
+        const filter = document.getElementById('searchInput').value.toLowerCase();
+        const rows = document.getElementById('tableBody').getElementsByTagName("tr");
+        for (let row of rows) {
+            row.style.display = row.textContent.toLowerCase().includes(filter) ? "" : "none";
+        }
+    }
+    function setMaxDates() {
+    const now = new Date();
+    const currentDateTime = now.toISOString().slice(0, 16);
+    const currentDate = now.toISOString().split('T')[0];
+    
+    // Set max for Add Modal
+    document.getElementById('addTime').max = currentDateTime;
+    document.getElementById('addRecDate').max = currentDate;
+    
+    // Set max for Edit Modal
+    document.getElementById('editTime').max = currentDateTime;
+    document.getElementById('editRecDate').max = currentDate;
+}
+
+// Call when Add Modal is shown
+document.getElementById('addModal').addEventListener('show.bs.modal', setMaxDates);
+
+// Call when Edit Modal is shown
+document.getElementById('editModal').addEventListener('show.bs.modal', setMaxDates);
+
+// Also call on page load
+document.addEventListener('DOMContentLoaded', setMaxDates);
+
+function setupDateValidations() {
+    // Add form validations
+    document.getElementById('addTime').addEventListener('change', function() {
+        validateTimestamp(this);
+    });
+    
+    document.getElementById('addRecDate').addEventListener('change', function() {
+        validateRechargeDate(this, document.getElementById('addTime').value);
+    });
+    
+    // Edit form validations
+    document.getElementById('editTime').addEventListener('change', function() {
+        validateTimestamp(this);
+    });
+    
+    document.getElementById('editRecDate').addEventListener('change', function() {
+        validateRechargeDate(this, document.getElementById('editTime').value);
+    });
+}
+
+function validateTimestamp(input) {
+    if (new Date(input.value) > new Date()) {
+        input.classList.add('is-invalid');
+        input.classList.remove('is-valid');
+        showTooltip(input, 'Timestamp cannot be in the future');
+    } else {
+        input.classList.remove('is-invalid');
+        input.classList.add('is-valid');
+    }
+}
+
+function validateRechargeDate(input, timestamp) {
+    const rechargeDate = new Date(input.value);
+    const timestampDate = new Date(timestamp);
+    const today = new Date();
+    
+    if (rechargeDate > today) {
+        input.classList.add('is-invalid');
+        input.classList.remove('is-valid');
+        showTooltip(input, 'Recharge date cannot be in the future');
+    } else if (timestamp && rechargeDate > timestampDate) {
+        input.classList.add('is-invalid');
+        input.classList.remove('is-valid');
+        showTooltip(input, 'Recharge date cannot be after timestamp');
+    } else {
+        input.classList.remove('is-invalid');
+        input.classList.add('is-valid');
+    }
+}
+
+function showTooltip(input, message) {
+    // Remove existing tooltip
+    const existingTooltip = input.parentNode.querySelector('.invalid-feedback');
+    if (existingTooltip) {
+        existingTooltip.remove();
+    }
+    
+    // Add new tooltip
+    const tooltip = document.createElement('div');
+    tooltip.className = 'invalid-feedback';
+    tooltip.textContent = message;
+    input.parentNode.appendChild(tooltip);
+}
+
+// Call this in DOMContentLoaded
+document.addEventListener('DOMContentLoaded', () => {
+    applyRolePermissions();
+    loadDropdowns();
+    loadReadings();
+    loadChart();
+    setupDateValidations(); // Add this line
+});
+
+    async function apiCall(url, method, body) {
+        const opts = { method: method, headers: {'Content-Type': 'application/json'} };
+        if(body) opts.body = JSON.stringify(body);
+        const res = await fetch(url, opts);
+        const json = await res.json();
+        if(json.error) alert(json.error);
+    }
+
+   async function loadChart() {
+    const res = await fetch(`${API_PATH}/chart.php`);
+    const data = await res.json();
+    
+    if(data.error) {
+        console.error('Chart data error:', data.error);
+        document.querySelector('#energyChart').parentElement.innerHTML = 
+            '<div class="alert alert-warning">Unable to load chart data.</div>';
+        return;
+    }
+    
+    if(window.myChart) window.myChart.destroy();
+    
+    // Create the grouped bar chart
+    window.myChart = new Chart(document.getElementById('energyChart'), {
+        type: 'bar',
+        data: {
+            labels: data.months || [], // Changed from data.weeks to data.months
+            datasets: [
+                {
+                    label: 'Electricity',
+                    data: data.electricity || [],
+                    backgroundColor: '#3498db',
+                    borderColor: '#2980b9',
+                    borderWidth: 1,
+                    barPercentage: 0.8,
+                    categoryPercentage: 0.9
+                },
+                {
+                    label: 'Gas',
+                    data: data.gas || [],
+                    backgroundColor: '#e74c3c',
+                    borderColor: '#c0392b',
+                    borderWidth: 1,
+                    barPercentage: 0.8,
+                    categoryPercentage: 0.9
+                },
+                {
+                    label: 'Water',
+                    data: data.water || [],
+                    backgroundColor: '#2ecc71',
+                    borderColor: '#27ae60',
+                    borderWidth: 1,
+                    barPercentage: 0.8,
+                    categoryPercentage: 0.9
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: {
+                        boxWidth: 12,
+                        padding: 10
+                    }
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            // Add units based on energy type
+                            let unit = '';
+                            switch(context.dataset.label) {
+                                case 'Electricity':
+                                    unit = ' kWh';
+                                    break;
+                                case 'Gas':
+                                    unit = ' Units';
+                                    break;
+                                case 'Water':
+                                    unit = ' Liters';
+                                    break;
+                            }
+                            label += context.parsed.y.toFixed(2) + unit;
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Months', // Changed from 'Weeks' to 'Months'
+                        font: {
+                            weight: 'bold'
+                        }
+                    },
+                    grid: {
+                        display: false
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Consumed Units',
+                        font: {
+                            weight: 'bold'
+                        }
+                    },
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            // Format large numbers with K suffix
+                            if (value >= 1000) {
+                                return (value / 1000).toFixed(1) + 'K';
+                            }
+                            return value;
+                        }
+                    }
+                }
+            },
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            }
+        }
+    });
+}
+</script>
+</body>
+</html>

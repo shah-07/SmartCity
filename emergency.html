@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emergency Response | Smart City Portal</title>
+    
+    <!-- Bootstrap & Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    
+    <!-- Leaflet Maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <style>
+        /* General Layout Styles (Consistency) */
+        .sidebar {
+            height: 100vh;
+            background-color: #2c3e50;
+            padding-top: 20px;
+        }
+        .sidebar a {
+            color: #ecf0f1;
+            padding: 15px 20px;
+            text-decoration: none;
+            display: block;
+            border-bottom: 1px solid #34495e;
+        }
+        .sidebar a:hover, .sidebar .active {
+            background-color: #3498db;
+            color: white;
+        }
+        .main-content {
+            padding: 30px;
+        }
+        /* Specific Styles */
+        .table-section {
+            margin-bottom: 40px;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .action-buttons {
+            white-space: nowrap;
+        }
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        .priority-critical {
+            background-color: #f8d7da !important;
+            color: #721c24 !important;
+        }
+        .priority-high {
+            background-color: #fff3cd !important;
+            color: #856404 !important;
+        }
+        .priority-medium {
+            background-color: #d1ecf1 !important;
+            color: #0c5460 !important;
+        }
+        #map {
+            height: 350px;
+            width: 100%;
+            border-radius: 5px;
+        }
+        .stat-card {
+            border-radius: 8px;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+
+<div class="d-flex">
+    <div class="sidebar d-flex flex-column" style="width: 250px;">
+        <h4 class="text-white text-center mb-4">Smart City Portal</h4>
+        <a href="dashboard.html"><i class="fas fa-th-large me-2"></i> Dashboard</a>
+        <a href="traffic.html"><i class="fas fa-car-side me-2"></i> Traffic Management</a>
+        <a href="parking.html"><i class="fas fa-parking me-2"></i> Smart Parking System</a>
+        <a href="energy.html"><i class="fas fa-bolt me-2"></i> Energy Monitoring</a>
+        <a href="pollution.html"><i class="fas fa-smog me-2"></i> Air Quality Monitoring</a>
+        <a href="emergency.html" class="active"><i class="fas fa-ambulance me-2"></i> Emergency Response</a>
+        <a href="index.html" class="mt-auto" onclick="sessionStorage.removeItem('userRole');"><i class="fas fa-sign-out-alt me-2"></i> Logout</a>
+    </div>
+
+    <div class="main-content flex-grow-1">
+        <header class="mb-5 border-bottom pb-3">
+            <h1>Emergency Response</h1>
+            <p class="lead text-muted">Manage <strong>Emergency Incidents</strong> and <strong>Response Operations</strong></p>
+        </header>
+
+        <!-- Stats Row -->
+        <div class="row mb-5">
+            <div class="col-md-4 mb-3">
+                <div class="card stat-card bg-danger text-white">
+                    <div class="card-body text-center">
+                        <h5 class="card-title"><i class="fas fa-exclamation-triangle me-2"></i>Active Incidents</h5>
+                        <h2 class="display-4" id="statActive">0</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card stat-card bg-warning text-dark">
+                    <div class="card-body text-center">
+                        <h5 class="card-title"><i class="fas fa-ambulance me-2"></i>Vehicles Available</h5>
+                        <h2 class="display-4" id="statVehicles">0</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card stat-card bg-success text-white">
+                    <div class="card-body text-center">
+                        <h5 class="card-title"><i class="fas fa-check-circle me-2"></i>Total Responses</h5>
+                        <h2 class="display-4" id="statResolved">0</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map and Charts Section -->
+        <section class="mb-5 p-4 border rounded shadow-sm bg-white">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="fas fa-map-marked-alt me-2"></i>Live Incident Map</h4>
+            </div>
+            <div class="p-3">
+                <div id="map"></div>
+                <div class="mt-3 text-center">
+                    <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#reportModal" id="btnReportIncident">
+                        <i class="fas fa-plus me-1"></i> Report New Incident
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <div class="row mb-5">
+            <div class="col-lg-6 mb-4">
+                <section class="table-section">
+                    <h2 class="h4 mb-4"><i class="fas fa-chart-pie me-2 text-primary"></i> Incidents by Type</h2>
+                    <div style="height: 250px;">
+                        <canvas id="typeChart"></canvas>
+                    </div>
+                </section>
+            </div>
+            <div class="col-lg-6 mb-4">
+                <section class="table-section">
+                    <h2 class="h4 mb-4"><i class="fas fa-chart-bar me-2 text-primary"></i> Average Response Times</h2>
+                    <div style="height: 250px;">
+                        <canvas id="perfChart"></canvas>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <hr>
+
+        <!-- Active Incidents Table -->
+        <section class="table-section">
+            <h2 class="h4 mb-4"><i class="fas fa-exclamation-circle me-2 text-danger"></i> Active Incidents</h2>
+            
+            <div class="d-flex justify-content-between mb-3">
+                <div class="input-group" style="width: 350px;">
+                    <input type="text" class="form-control" placeholder="Search by ID, Type, or Location..." id="searchInc" onkeyup="filterTable('searchInc','activeBody')">
+                    <button class="btn btn-outline-secondary" type="button"><i class="fas fa-search"></i></button>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Type</th>
+                            <th>Location</th>
+                            <th>Report Time</th>
+                            <th>Priority</th>
+                            <th>Status</th>
+                            <th id="incidentsActionsHeader">Action Buttons</th>
+                        </tr>
+                    </thead>
+                    <tbody id="activeBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Response History Table -->
+        <section class="table-section">
+            <h2 class="h4 mb-4"><i class="fas fa-history me-2 text-info"></i> Response History (Resolved)</h2>
+            
+            <div class="d-flex justify-content-between mb-3">
+                <div class="input-group" style="width: 350px;">
+                    <input type="text" class="form-control" placeholder="Search by Incident ID or Location..." id="searchHist" onkeyup="filterTable('searchHist','historyBody')">
+                    <button class="btn btn-outline-secondary" type="button"><i class="fas fa-search"></i></button>
+                </div>
+
+                <button class="btn btn-success" id="btnAddHist" onclick="openAddHistoryModal()">
+                    <i class="fas fa-plus me-1"></i> Add History Record
+                </button>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Incident ID</th>
+                            <th>Type</th>
+                            <th>Location</th>
+                            <th>Report Time</th>
+                            <th>Dispatch</th>
+                            <th>Arrival</th>
+                            <th>Response Time</th>
+                            <th>Performance</th>
+                            <th id="historyActionsHeader">Action Buttons</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Emergency Vehicles Table -->
+        <section class="table-section">
+            <h2 class="h4 mb-4"><i class="fas fa-ambulance me-2 text-secondary"></i> Emergency Vehicles</h2>
+            
+            <div class="d-flex justify-content-between mb-3">
+                <div class="input-group" style="width: 350px;">
+                    <input type="text" class="form-control" placeholder="Search by Reg No. or Type..." id="searchVeh" onkeyup="filterTable('searchVeh','vehicleBody')">
+                    <button class="btn btn-outline-secondary" type="button"><i class="fas fa-search"></i></button>
+                </div>
+
+                <button class="btn btn-success" id="btnAddVeh" data-bs-toggle="modal" data-bs-target="#vehicleModal">
+                    <i class="fas fa-plus me-1"></i> Add New Vehicle
+                </button>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Reg No.</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th>Assigned Incident</th>
+                            <th id="vehiclesActionsHeader">Action Buttons</th>
+                        </tr>
+                    </thead>
+                    <tbody id="vehicleBody"></tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+</div>
+
+<!-- Incident Modal -->
+<div class="modal fade" id="reportModal" tabindex="-1" aria-labelledby="reportModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="reportModalLabel">Report Incident</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="incidentForm">
+                    <input type="hidden" id="incID">
+                    <div class="mb-3">
+                        <label class="form-label">Type *</label>
+                        <select id="incType" class="form-select" required>
+                            <option value="Accident">Accident</option>
+                            <option value="Fire">Fire</option>
+                            <option value="Medical">Medical</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Location *</label>
+                        <input type="text" id="incLoc" class="form-control" required>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col">
+                            <label class="form-label">Latitude</label>
+                            <input type="number" step="any" id="incLat" class="form-control" placeholder="Lat">
+                        </div>
+                        <div class="col">
+                            <label class="form-label">Longitude</label>
+                            <input type="number" step="any" id="incLng" class="form-control" placeholder="Lng">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Priority *</label>
+                        <select id="incPrio" class="form-select" required>
+                            <option value="Critical">Critical</option>
+                            <option value="High">High</option>
+                            <option value="Medium">Medium</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Status *</label>
+                        <select id="incStatus" class="form-select" required>
+                            <option value="Active">Active</option>
+                            <option value="Resolved">Resolved</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <input type="text" id="incDesc" class="form-control">
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-danger">Save Incident</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Vehicle Modal -->
+<div class="modal fade" id="vehicleModal" tabindex="-1" aria-labelledby="vehicleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-secondary text-white">
+                <h5 class="modal-title" id="vehicleModalLabel">Add Emergency Vehicle</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="vehicleForm">
+                    <div class="mb-3">
+                        <label class="form-label">Registration Number *</label>
+                        <input type="text" id="vehReg" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Type *</label>
+                        <select id="vehType" class="form-select" required>
+                            <option value="Ambulance">Ambulance</option>
+                            <option value="Fire Truck">Fire Truck</option>
+                            <option value="Police">Police</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Status *</label>
+                        <select id="vehStatus" class="form-select" required>
+                            <option value="Available">Available</option>
+                            <option value="Maintenance">Maintenance</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Assigned Incident ID</label>
+                        <input type="number" id="vehAssigned" class="form-control">
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-secondary text-white">Save Vehicle</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- History Modal -->
+<div class="modal fade" id="historyModal" tabindex="-1" aria-labelledby="historyModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="historyModalLabel">Log Response</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="historyForm">
+                    <input type="hidden" id="histID">
+                    <div class="mb-3">
+                        <label class="form-label">Incident ID *</label>
+                        <input type="number" id="histIncID" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Vehicle Used *</label>
+                        <select id="histVeh" class="form-select" required>
+                            <option value="">Loading...</option>
+                        </select>
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label">Dispatch Time *</label>
+                            <input type="datetime-local" id="histDisp" class="form-control" required>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label">Arrival Time *</label>
+                            <input type="datetime-local" id="histArr" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Completion Time *</label>
+                        <input type="datetime-local" id="histComp" class="form-control" required>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-info text-white">Save Response</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    // Configuration - Added role-based access
+    const userRole = sessionStorage.getItem('userRole') || 'admin'; // Default to admin for testing
+    const API_PATH = 'api/emergency';
+    let map, incidentLayer, typeChart, perfChart;
+
+    // Apply role-based access control
+    function applyRoleBasedAccess() {
+        const isCitizen = userRole === 'citizen';
+        
+        // Hide admin-only elements for citizens
+        const adminOnlyElements = [
+            'btnAddHist',
+            'btnAddVeh',
+            'incidentsActionsHeader',
+            'historyActionsHeader',
+            'vehiclesActionsHeader'
+        ];
+        
+        adminOnlyElements.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.style.display = isCitizen ? 'none' : '';
+            }
+        });
+        
+        // Hide action buttons in tables for citizens
+        const actionButtons = document.querySelectorAll('.action-buttons');
+        actionButtons.forEach(button => {
+            if (button.closest('td')) {
+                button.closest('td').style.display = isCitizen ? 'none' : 'table-cell';
+            }
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // Apply role-based access control
+        applyRoleBasedAccess();
+        
+        // Initialize map and load data
+        initMap();
+        loadAllData();
+        
+        // Reset Modals on Close
+        document.getElementById('reportModal').addEventListener('hidden.bs.modal', () => { 
+            document.getElementById('incidentForm').reset(); 
+            document.getElementById('incID').value = ''; 
+            document.getElementById('reportModalLabel').innerText = "Report Incident"; 
+        });
+        document.getElementById('vehicleModal').addEventListener('hidden.bs.modal', () => { 
+            document.getElementById('vehicleForm').reset(); 
+            document.getElementById('vehReg').readOnly = false; 
+            document.getElementById('vehicleModalLabel').innerText = "Add Emergency Vehicle"; 
+        });
+        document.getElementById('historyModal').addEventListener('hidden.bs.modal', () => {
+            document.getElementById('historyForm').reset();
+            document.getElementById('histID').value = '';
+            document.getElementById('historyModalLabel').innerText = "Log Response";
+        });
+    });
+
+    function initMap() {
+        map = L.map('map').setView([23.8103, 90.4125], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        incidentLayer = L.layerGroup().addTo(map);
+    }
+
+    function loadAllData() { loadIncidents(); loadVehicles(); loadHistory(); loadStats(); }
+    async function fetchJSON(url) { try { const r = await fetch(url); return await r.json(); } catch(e) { return []; } }
+
+    // --- INCIDENTS ---
+    async function loadIncidents() {
+        const data = await fetchJSON(`${API_PATH}/incidents.php`);
+        if(!Array.isArray(data)) return;
+        document.getElementById('statActive').innerText = data.filter(i=>i.status==='Active').length;
+        
+        incidentLayer.clearLayers();
+        data.filter(i=>i.status==='Active').forEach(i => {
+            L.circleMarker([i.latitude||23.81, i.longitude||90.41], {color: i.priority==='Critical'?'red':'orange', radius:8}).addTo(incidentLayer).bindPopup(`<b>${i.incidentType}</b><br>${i.location}`);
+        });
+
+        document.getElementById('activeBody').innerHTML = data.filter(i=>i.status==='Active').map(i => {
+            let btns = `<span class="text-muted small">View Only</span>`;
+            if(userRole === 'admin') {
+                btns = `
+                    <div class="action-buttons">
+                        <button class="btn btn-sm btn-success" title="Resolve" onclick="openResolveModal(${i.incidentID})"><i class="fas fa-check me-1"></i> Resolve</button>
+                        <button class="btn btn-sm btn-warning text-white" onclick='editInc(${JSON.stringify(i)})'><i class="fas fa-edit me-1"></i> Edit</button>
+                        <button class="btn btn-sm btn-danger" onclick="delInc(${i.incidentID})"><i class="fas fa-trash me-1"></i> Delete</button>
+                    </div>
+                `;
+            }
+            const priorityClass = i.priority === 'Critical' ? 'priority-critical' : 
+                                 i.priority === 'High' ? 'priority-high' : 'priority-medium';
+            return `
+                <tr>
+                    <td><strong>${i.incidentID}</strong></td>
+                    <td>${i.incidentType}</td>
+                    <td>${i.location}</td>
+                    <td>${i.incidentTime}</td>
+                    <td><span class="badge ${priorityClass}">${i.priority}</span></td>
+                    <td><span class="badge bg-${i.status==='Active'?'danger':'success'}">${i.status}</span></td>
+                    <td>${btns}</td>
+                </tr>`;
+        }).join('');
+        
+        // Re-apply role-based access after loading data
+        applyRoleBasedAccess();
+    }
+
+    // --- HISTORY ---
+    async function loadHistory() {
+    const data = await fetchJSON(`${API_PATH}/responses.php`);
+    if(!Array.isArray(data)) return;
+    document.getElementById('statResolved').innerText = data.length;
+
+    document.getElementById('historyBody').innerHTML = data.map(h => {
+        let btns = '-';
+        if(userRole === 'admin') {
+            btns = `
+                <div class="action-buttons">
+                    <button class="btn btn-sm btn-warning text-white" onclick='editHist(${JSON.stringify(h)})'><i class="fas fa-edit me-1"></i> Edit</button>
+                    <button class="btn btn-sm btn-danger" onclick="delHist(${h.responseID})"><i class="fas fa-trash me-1"></i> Delete</button>
+                </div>`;
+        }
+        
+        const performanceBadge = h.performance === 'Excellent' ? 'bg-success' : 
+                                 h.performance === 'Good' ? 'bg-primary' : 'bg-danger';
+        
+        return `
+        <tr>
+            <td>${h.incidentID}</td>
+            <td>${h.incidentType || '-'}</td>
+            <td>${h.location || '-'}</td>
+            <td>${h.reportTime || '-'}</td>
+            <td>${h.dispatchTime}</td>
+            <td>${h.arrivalTime}</td>
+            <td>${h.responseTime || '0'} m</td>
+            <td><span class="badge ${performanceBadge}">${h.performance || 'N/A'}</span></td>
+            <td>${btns}</td>
+        </tr>`;
+    }).join('');
+    
+    // Re-apply role-based access after loading data
+    applyRoleBasedAccess();
+}
+
+    // --- VEHICLES & DROPDOWN ---
+    async function loadVehicles() {
+        const data = await fetchJSON(`${API_PATH}/vehicles.php`);
+        if(!Array.isArray(data)) return;
+        document.getElementById('statVehicles').innerText = data.filter(v=>v.status==='Available').length;
+        
+        // Populate Table
+        document.getElementById('vehicleBody').innerHTML = data.map(v => {
+            let btns = '-';
+            if(userRole === 'admin') {
+                btns = `
+                    <div class="action-buttons">
+                        <button class="btn btn-sm btn-warning text-white" onclick='editVeh(${JSON.stringify(v)})'><i class="fas fa-edit me-1"></i> Edit</button>
+                        <button class="btn btn-sm btn-danger" onclick="delVeh('${v.registrationNumber}')"><i class="fas fa-trash me-1"></i> Delete</button>
+                    </div>`;
+            }
+            const statusBadge = v.status === 'Available' ? 'bg-success' : 'bg-secondary';
+            return `<tr>
+                <td><strong>${v.registrationNumber}</strong></td>
+                <td>${v.unitType}</td>
+                <td><span class="badge ${statusBadge}">${v.status}</span></td>
+                <td>${v.assignedIncidentID||'-'}</td>
+                <td>${btns}</td>
+            </tr>`;
+        }).join('');
+
+        // Populate Modal Dropdown
+        const opts = data.map(v => `<option value="${v.registrationNumber}">${v.registrationNumber} (${v.unitType})</option>`).join('');
+        document.getElementById('histVeh').innerHTML = opts || '<option>No Vehicles Found</option>';
+        
+        // Re-apply role-based access after loading data
+        applyRoleBasedAccess();
+    }
+
+    // --- CHARTS ---
+    async function loadStats() {
+        const data = await fetchJSON(`${API_PATH}/stats.php`);
+        if(!data || !data.byType) return;
+        
+        // Type Chart
+        const ctx1 = document.getElementById('typeChart').getContext('2d');
+        if(typeChart) typeChart.destroy();
+        typeChart = new Chart(ctx1, { 
+            type: 'doughnut', 
+            data: { 
+                labels: data.byType.map(d=>d.type), 
+                datasets: [{
+                    data: data.byType.map(d=>d.count), 
+                    backgroundColor: ['#e74c3c','#3498db','#f1c40f','#9b59b6']
+                }] 
+            }, 
+            options: {
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom' }
+                }
+            } 
+        });
+        
+        // Performance Chart
+        const ctx2 = document.getElementById('perfChart').getContext('2d');
+        if(perfChart) perfChart.destroy();
+        perfChart = new Chart(ctx2, { 
+            type: 'bar', 
+            data: { 
+                labels: data.byResponse ? data.byResponse.map(d=>d.unitType) : [], 
+                datasets: [{
+                    label: 'Avg Response Time (minutes)', 
+                    data: data.byResponse ? data.byResponse.map(d=>d.avgTime) : [], 
+                    backgroundColor: '#2ecc71'
+                }] 
+            }, 
+            options: {
+                maintainAspectRatio: false,
+                scales: {
+                    y: { beginAtZero: true, title: { display: true, text: 'Minutes' } },
+                    x: { title: { display: true, text: 'Vehicle Type' } }
+                }
+            } 
+        });
+    }
+
+    // --- ACTIONS ---
+    function filterTable(inId, tbId) { 
+        const f = document.getElementById(inId).value.toLowerCase(); 
+        const r = document.getElementById(tbId).getElementsByTagName("tr"); 
+        for(let i of r) i.style.display = i.innerText.toLowerCase().includes(f) ? "" : "none"; 
+    }
+
+    // Incident Submit
+    document.getElementById('incidentForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('incID').value;
+        await fetch(`${API_PATH}/incidents.php`, { 
+            method: id?'PUT':'POST', 
+            body: JSON.stringify({
+                incidentID: id, 
+                incidentType: document.getElementById('incType').value, 
+                location: document.getElementById('incLoc').value,
+                latitude: document.getElementById('incLat').value||23.81, 
+                longitude: document.getElementById('incLng').value||90.41,
+                priority: document.getElementById('incPrio').value, 
+                status: document.getElementById('incStatus').value, 
+                description: document.getElementById('incDesc').value
+            }), 
+            headers:{'Content-Type':'application/json'} 
+        });
+        bootstrap.Modal.getInstance(document.getElementById('reportModal')).hide(); 
+        loadIncidents();
+    };
+    
+    window.editInc = (i) => {
+        document.getElementById('reportModalLabel').innerText = "Edit Incident"; 
+        document.getElementById('incID').value = i.incidentID;
+        document.getElementById('incType').value = i.incidentType; 
+        document.getElementById('incLoc').value = i.location;
+        document.getElementById('incLat').value = i.latitude; 
+        document.getElementById('incLng').value = i.longitude;
+        document.getElementById('incPrio').value = i.priority; 
+        document.getElementById('incStatus').value = i.status;
+        document.getElementById('incDesc').value = i.description||'';
+        new bootstrap.Modal(document.getElementById('reportModal')).show();
+    };
+    
+    window.delInc = async (id) => { 
+        if(confirm('Are you sure you want to delete this incident?')) { 
+            await fetch(`${API_PATH}/incidents.php?id=${id}`,{method:'DELETE'}); 
+            loadIncidents(); 
+        } 
+    };
+
+    // History Submit (Resolve)
+    window.openResolveModal = (incID) => {
+        document.getElementById('historyForm').reset(); 
+        document.getElementById('historyModalLabel').innerText = "Resolve & Log Response";
+        document.getElementById('histID').value = ''; 
+        document.getElementById('histIncID').value = incID;
+        const now = new Date().toISOString().slice(0,16);
+        document.getElementById('histDisp').value = now; 
+        document.getElementById('histArr').value = now; 
+        document.getElementById('histComp').value = now;
+        new bootstrap.Modal(document.getElementById('historyModal')).show();
+    };
+    
+    window.openAddHistoryModal = () => {
+        document.getElementById('historyForm').reset(); 
+        document.getElementById('historyModalLabel').innerText = "Add History Record";
+        document.getElementById('histID').value = '';
+        new bootstrap.Modal(document.getElementById('historyModal')).show();
+    };
+    
+    window.editHist = (h) => {
+        document.getElementById('historyModalLabel').innerText = "Edit History";
+        document.getElementById('histID').value = h.responseID; 
+        document.getElementById('histIncID').value = h.incidentID;
+        document.getElementById('histVeh').value = h.registrationNumber;
+        document.getElementById('histDisp').value = h.dispatchTime.replace(' ','T'); 
+        document.getElementById('histArr').value = h.arrivalTime.replace(' ','T');
+        document.getElementById('histComp').value = h.completionTime.replace(' ','T');
+        new bootstrap.Modal(document.getElementById('historyModal')).show();
+    };
+    
+    document.getElementById('historyForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('histID').value;
+        const body = {
+            responseID: id, 
+            incidentID: document.getElementById('histIncID').value, 
+            registrationNumber: document.getElementById('histVeh').value,
+            dispatchTime: document.getElementById('histDisp').value, 
+            arrivalTime: document.getElementById('histArr').value, 
+            completionTime: document.getElementById('histComp').value
+        };
+        await fetch(`${API_PATH}/responses.php`, { 
+            method: id?'PUT':'POST', 
+            body: JSON.stringify(body), 
+            headers: {'Content-Type':'application/json'} 
+        });
+        bootstrap.Modal.getInstance(document.getElementById('historyModal')).hide(); 
+        loadHistory(); 
+        loadIncidents();
+    };
+    
+    window.delHist = async (id) => { 
+        if(confirm('Are you sure you want to delete this response history?')) { 
+            await fetch(`${API_PATH}/responses.php?id=${id}`,{method:'DELETE'}); 
+            loadHistory(); 
+        } 
+    };
+
+    // Vehicle Submit
+    document.getElementById('vehicleForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const isEdit = document.getElementById('vehReg').readOnly;
+        const body = { 
+            registrationNumber: document.getElementById('vehReg').value, 
+            unitType: document.getElementById('vehType').value, 
+            status: document.getElementById('vehStatus').value, 
+            assignedIncidentID: document.getElementById('vehAssigned').value 
+        };
+        await fetch(`${API_PATH}/vehicles.php`, { 
+            method: isEdit?'PUT':'POST', 
+            body: JSON.stringify(body), 
+            headers:{'Content-Type':'application/json'} 
+        });
+        bootstrap.Modal.getInstance(document.getElementById('vehicleModal')).hide(); 
+        loadVehicles();
+    };
+    
+    window.editVeh = (v) => {
+        document.getElementById('vehicleModalLabel').innerText = "Edit Vehicle";
+        document.getElementById('vehReg').value = v.registrationNumber; 
+        document.getElementById('vehReg').readOnly = true;
+        document.getElementById('vehType').value = v.unitType; 
+        document.getElementById('vehStatus').value = v.status;
+        document.getElementById('vehAssigned').value = v.assignedIncidentID||'';
+        new bootstrap.Modal(document.getElementById('vehicleModal')).show();
+    };
+    
+    window.delVeh = async (id) => { 
+        if(confirm('Are you sure you want to delete this vehicle?')) { 
+            await fetch(`${API_PATH}/vehicles.php?id=${id}`,{method:'DELETE'}); 
+            loadVehicles(); 
+        } 
+    };
+</script>
+</body>
+</html>
