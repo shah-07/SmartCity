@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traffic Management | Smart City Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="styles.css"> 
+    <style>
+        .sidebar { height: 100vh; background-color: #2c3e50; padding-top: 20px; }
+        .sidebar a { color: #ecf0f1; padding: 15px 20px; text-decoration: none; display: block; border-bottom: 1px solid #34495e; }
+        .sidebar a:hover, .sidebar .active { background-color: #3498db; color: white; }
+        .main-content { padding: 30px; }
+    </style>
+</head>
+<body>
+
+<div class="d-flex">
+    <div class="sidebar d-flex flex-column" style="width: 250px;">
+        <h4 class="text-white text-center mb-4">Smart City Portal</h4>
+        <a href="dashboard.html"><i class="fas fa-th-large me-2"></i> Dashboard</a>
+        <a href="traffic.html" class="active"><i class="fas fa-car-side me-2"></i> Traffic Management</a>
+        <a href="parking.html"><i class="fas fa-parking me-2"></i> Smart Parking System</a>
+        <a href="energy.html"><i class="fas fa-bolt me-2"></i> Energy Monitoring</a>
+        <a href="pollution.html"><i class="fas fa-smog me-2"></i> Air Quality Monitoring</a>
+        <a href="emergency.html"><i class="fas fa-ambulance me-2"></i> Emergency Response</a>
+        <a href="index.html" class="mt-auto" onclick="sessionStorage.removeItem('userRole');"><i class="fas fa-sign-out-alt me-2"></i> Logout</a>
+    </div>
+
+    <div class="main-content flex-grow-1">
+        <header class="mb-5 border-bottom pb-3">
+            <h1>Smart City Traffic Management (Table: TrafficData)</h1>
+            <p class="lead text-muted">Monitor congestion, accident hotspots, and optimize routes.</p>
+        </header>
+
+        <section class="mb-5 p-4 border rounded shadow-sm bg-white">
+            <h2 class="h4 mb-3"><i class="fas fa-chart-line me-2 text-primary"></i> Traffic Flow & Congestion Chart</h2>
+            <div style="height: 300px;">
+                <canvas id="trafficChart"></canvas>
+            </div>
+            <p class="mt-3 text-center text-info"><strong>Live Data</strong> of Traffic</p>
+        </section>
+        
+        <hr>
+
+        <section class="mb-5">
+            <h2 class="h4 mb-4"><i class="fas fa-database me-2 text-primary"></i> Traffic Data Records</h2>
+            
+            <div class="d-flex justify-content-between mb-3">
+                <div class="input-group" style="width: 300px;">
+                    <input type="text" class="form-control" placeholder="Search by Location..." aria-label="Search Traffic Data" id="searchTrafficData">
+                    <button class="btn btn-outline-secondary" type="button"><i class="fas fa-search"></i></button>
+                </div>
+
+                <button class="btn btn-success" id="btnAddRecord" data-bs-toggle="modal" data-bs-target="#addEditModal" onclick="prepareAddModal()">
+                    <i class="fas fa-plus me-1"></i> Add New Record
+                </button>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Record ID</th>
+                            <th>Sensor ID</th>
+                            <th>Location</th>
+                            <th>Timestamp</th>
+                            <th>Vehicle Count</th>
+                            <th>Congestion</th>
+                            <th>Number of Accidents</th>
+                            <th id="actionsHeader">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trafficDataTableBody">
+                        </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+</div>
+
+<div class="modal fade" id="addEditModal" tabindex="-1" aria-labelledby="addEditModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addEditModalLabel">Add/Edit Traffic Record</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="trafficForm">
+                    <input type="hidden" id="recordId">
+                    
+                    <div class="mb-3">
+                        <label for="sensorID" class="form-label">Sensor Source</label>
+                        <select id="sensorID" class="form-select" required>
+    <option value="">Select a sensor...</option>
+</select>
+                    </div>
+
+                    <div class="mb-3">
+    <label for="location" class="form-label">Location</label>
+    <input type="text" class="form-control" id="location" readonly required>
+</div>
+                    <div class="mb-3">
+                        <label for="timestamp" class="form-label">Timestamp</label>
+                        <input type="datetime-local" class="form-control" id="timestamp" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="vehicleCount" class="form-label">Vehicle Count</label>
+                        <input type="number" class="form-control" id="vehicleCount" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="congestion" class="form-label">Congestion Level</label>
+                        <select class="form-select" id="congestion">
+                            <option value="Low">Low</option>
+                            <option value="Medium">Medium</option>
+                            <option value="High">High</option>
+                            <option value="Severe">Severe</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="numAccidents" class="form-label">Number of Accidents</label>
+                        <input type="number" class="form-control" id="numAccidents" min="0" value="0" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Save Record</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    const API_PATH = 'api/traffic';
+    const userRole = sessionStorage.getItem('userRole');
+    const isCitizen = userRole === 'citizen';
+    let chartInstance = null;
+
+
+    function getLocalDateTimeString(date = new Date()) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+
+    document.addEventListener('DOMContentLoaded', () => {
+    applyRolePermissions();
+    loadSensors();
+    
+    document.getElementById('sensorID').addEventListener('change', function() {
+        if (this.value) {
+            loadSensorLocation(this.value);
+        }
+    });
+    
+    // Set max timestamp to current LOCAL date/time
+    document.getElementById('timestamp').max = getLocalDateTimeString();
+    
+    loadTrafficData();
+    loadChart();
+});
+    
+    // 1. ROLE-BASED ACCESS CONTROL
+    function applyRolePermissions() {
+        if (isCitizen) {
+            document.getElementById('btnAddRecord').style.display = 'none';
+            document.getElementById('actionsHeader').style.display = 'none';
+            document.getElementById('addEditModalLabel').textContent = 'Traffic Record Details (View Only)';
+        }
+    }
+
+    // NEW FUNCTION: Load sensor location when sensor is selected
+async function loadSensorLocation(sensorID) {
+    if (!sensorID) return;
+    
+    try {
+        const res = await fetch(`${API_PATH}/sensors.php`);
+        const sensors = await res.json();
+        const selectedSensor = sensors.find(s => s.sensorID == sensorID);
+        
+        if (selectedSensor && selectedSensor.location) {
+            document.getElementById('location').value = selectedSensor.location;
+        }
+    } catch (e) {
+        console.error("Error loading sensor location", e);
+    }
+}
+
+    // 2. LOAD SENSORS (For Dropdown)
+async function loadSensors() {
+    try {
+        const res = await fetch(`${API_PATH}/sensors.php`);
+        const data = await res.json();
+        const select = document.getElementById('sensorID');
+        
+        // Clear existing options except the first placeholder
+        while (select.options.length > 1) {
+            select.remove(1);
+        }
+        
+        if (data.length > 0) {
+            data.forEach(s => {
+                const option = document.createElement('option');
+                option.value = s.sensorID;
+                option.textContent = `ID ${s.sensorID} - ${s.location || 'Unknown'}`;
+                select.appendChild(option);
+            });
+        } else {
+            const option = document.createElement('option');
+            option.value = "";
+            option.textContent = "No Sensors Found";
+            select.appendChild(option);
+        }
+    } catch (e) { console.error("Error loading sensors", e); }
+}
+    
+    // 3. LOAD DATA
+    async function loadTrafficData() {
+        try {
+            const res = await fetch(`${API_PATH}/records.php`);
+            const data = await res.json();
+            const tbody = document.getElementById('trafficDataTableBody');
+            
+            if (data.error) { console.error(data.error); return; }
+
+            tbody.innerHTML = data.map(r => {
+                // Determine highlight class
+                let rowClass = '';
+if (r.numberOfRoadAccidents >= 3 && r.numberOfRoadAccidents <= 5) {
+    rowClass = 'table-warning'; // Yellow for 3-5 accidents
+} else if (r.numberOfRoadAccidents > 5) {
+    rowClass = 'table-danger'; // Red for >5 accidents
+} else if (r.numberOfRoadAccidents >= 0) {
+    rowClass = 'table-success'; // Green for 1-2 accidents
+}
+                
+                let btns = '';
+                if (!isCitizen) {
+                    btns = `
+                        <button class="btn btn-sm btn-info text-white me-1 edit-btn" onclick='openEditModal(${JSON.stringify(r)})'><i class="fas fa-edit"></i> Edit</button>
+                        <button class="btn btn-sm btn-danger delete-btn" onclick="deleteRecord(${r.recordID})"><i class="fas fa-trash-alt"></i> Delete</button>
+                    `;
+                }
+
+                return `
+                    <tr class="${rowClass}">
+                        <td>${r.recordID}</td>
+                        <td>${r.sensorID}</td>
+                        <td>${r.location}</td>
+                        <td>${r.timestamp}</td>
+                        <td>${r.trafficFlow}</td>
+                        <td><span class="badge bg-${getCongestionColor(r.congestionLevel)}">${r.congestionLevel}</span></td>
+                        <td>${r.numberOfRoadAccidents}</td>
+                        <td class="action-buttons">${btns}</td>
+                    </tr>
+                `;
+            }).join('');
+            
+            if(isCitizen) {
+                document.querySelectorAll('.action-buttons').forEach(el => el.style.display = 'none');
+            }
+        } catch (e) { console.error("Error loading records", e); }
+    }
+
+    // 4. CHART
+    async function loadChart() {
+        try {
+            const res = await fetch(`${API_PATH}/stats.php`);
+            const data = await res.json();
+            
+            // Format labels (week ranges)
+const labels = data.map(r => r.week_range);
+const values = data.map(r => Math.round(r.avg_traffic));
+
+const ctx = document.getElementById('trafficChart').getContext('2d');
+if (chartInstance) chartInstance.destroy();
+
+chartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: labels,
+        datasets: [{
+            label: 'Average Weekly Vehicle Count',
+            data: values,
+            borderColor: 'rgba(52, 152, 219, 1)',
+            backgroundColor: 'rgba(52, 152, 219, 0.2)',
+            fill: true,
+            tension: 0.3
+        }]
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+});
+        } catch (e) { console.error("Chart Error", e); }
+    }
+
+    // 5. FORM HANDLING (Add/Edit)
+    document.getElementById('trafficForm').addEventListener('submit', async function(event) {
+        event.preventDefault();
+        
+        const id = document.getElementById('recordId').value;
+        const body = {
+            recordID: id,
+            sensorID: document.getElementById('sensorID').value,
+            location: document.getElementById('location').value,
+            timestamp: document.getElementById('timestamp').value,
+            trafficFlow: document.getElementById('vehicleCount').value,
+            congestionLevel: document.getElementById('congestion').value,
+            numberOfRoadAccidents: document.getElementById('numAccidents').value
+        };
+
+        const method = id ? 'PUT' : 'POST';
+        
+        await fetch(`${API_PATH}/records.php`, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        
+        const modalElement = document.getElementById('addEditModal');
+        const modal = bootstrap.Modal.getInstance(modalElement);
+        if (modal) modal.hide();
+        
+        loadTrafficData();
+        loadChart();
+    });
+
+    // 6. DELETE ACTION
+    async function deleteRecord(id) {
+        if (confirm(`Are you sure you want to DELETE record ID ${id}?`)) {
+            await fetch(`${API_PATH}/records.php?id=${id}`, { method: 'DELETE' });
+            loadTrafficData();
+            loadChart();
+        }
+    }
+
+    // 7. HELPER FUNCTIONS
+    function prepareAddModal() {
+    document.getElementById('trafficForm').reset();
+    document.getElementById('recordId').value = '';
+    document.getElementById('location').value = ''; // Clear location
+    document.getElementById('sensorID').value = ''; 
+    document.getElementById('addEditModalLabel').textContent = 'Add Traffic Record';
+    // Make location readonly for new records
+    document.getElementById('location').readOnly = true;
+}
+
+    function openEditModal(r) {
+    document.getElementById('addEditModalLabel').textContent = 'Edit Traffic Record';
+    document.getElementById('recordId').value = r.recordID;
+    document.getElementById('sensorID').value = r.sensorID;
+    document.getElementById('location').value = r.location;
+    document.getElementById('timestamp').value = r.timestamp.replace(" ", "T").slice(0, 16);
+    document.getElementById('vehicleCount').value = r.trafficFlow;
+    document.getElementById('congestion').value = r.congestionLevel;
+    document.getElementById('numAccidents').value = r.numberOfRoadAccidents;
+    
+    // For editing, make location editable in case it needs correction
+    document.getElementById('location').readOnly = true;
+    
+    new bootstrap.Modal(document.getElementById('addEditModal')).show();
+}
+
+    function getCongestionColor(level) {
+        switch(level) {
+            case 'Low': return 'success';
+            case 'Medium': return 'warning';
+            case 'High': return 'danger';
+            case 'Severe': return 'dark';
+            default: return 'secondary';
+        }
+    }
+
+    // Search
+    document.getElementById('searchTrafficData').addEventListener('keyup', function() {
+        const searchText = this.value.toLowerCase();
+        const rows = document.getElementById('trafficDataTableBody').getElementsByTagName('tr');
+        Array.from(rows).forEach(row => {
+            row.style.display = row.textContent.toLowerCase().includes(searchText) ? '' : 'none';
+        });
+    });
+
+</script>
+</body>
+</html>
