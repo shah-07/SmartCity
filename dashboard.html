@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,52 +8,24 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
     <style>
-        /* Simple Dashboard Layout Styling */
-        /* FIX: Ensure the main outer flex container spans the full viewport height */
+        /* Layout scaffolding kept exactly as-is; appearance comes from styles.css */
         .full-height-container {
             min-height: 100vh;
         }
 
         .sidebar {
-    width: 250px !important; /* FORCED WIDTH FIX */
-    min-width: 250px !important; /* ADD THIS: Prevent shrinking */
-    max-width: 250px !important; /* ADD THIS: Prevent expanding */
-    background-color: #2c3e50; /* Dark blue/gray */
-    padding-top: 20px;
-    flex-shrink: 0 !important; /* ADD THIS: Prevent flex shrinking */
-    /* Sidebar is a d-flex flex-column from the HTML, which is correct */
-}
-        .sidebar a {
-            color: #ecf0f1;
-            padding: 15px 20px;
-            text-decoration: none;
-            display: block;
-            border-bottom: 1px solid #34495e;
+            width: 250px !important;
+            min-width: 250px !important;
+            max-width: 250px !important;
+            flex-shrink: 0 !important;
         }
-        .sidebar a:hover, .sidebar .active {
-            background-color: #3498db; /* Bright blue highlight */
-            color: white;
-        }
-        /* FIX: Use .logout-link class (applied in the HTML) to push it to the bottom */
+
         .logout-link {
             margin-top: auto;
         }
 
-        .main-content {
-            padding: 30px;
-        }
         .feature-card {
             min-height: 180px;
-            border-left: 5px solid #3498db;
-            transition: transform 0.2s;
-        }
-        .feature-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
-        }
-        .card-icon {
-            font-size: 2.5rem;
-            color: #3498db;
         }
     </style>
 </head>
