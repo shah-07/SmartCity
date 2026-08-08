@@ -1,63 +1,70 @@
 <?php
-// api/energy/lists.php
-header("Content-Type: application/json");
-header("Access-Control-Allow-Origin: *");
-include_once '../../config.php';
+// api/energy/lists.php - Sensors selectable on the energy page.
+//
+// A sensor belongs here if it already carries energy readings, or if its
+// declared type in Iot_Sensor_T names one of the three utilities. The
+// dropdown must offer only sensor IDs that really exist, so that a reading
+// saved against one points at a real sensor.
+require_once __DIR__ . '/../_guard.php';
+require_once __DIR__ . '/../../config.php';
+
+handle_preflight();
+require_auth();
+
+/** Maps a free-text sensor type onto an energy type, or '' if it is not one. */
+function map_energy_type($rawType)
+{
+    $type = strtolower((string)$rawType);
+
+    if (strpos($type, 'electric') !== false) {
+        return 'Electricity';
+    }
+    if (strpos($type, 'water') !== false) {
+        return 'Water';
+    }
+    if (strpos($type, 'gas') !== false) {
+        return 'Gas';
+    }
+    return '';
+}
 
 try {
-    // Check if Iot_Sensor_T exists
-    $checkTable = $pdo->query("SHOW TABLES LIKE 'Iot_Sensor_T'");
-    if ($checkTable->rowCount() == 0) {
-        echo json_encode([]);
-        exit();
-    }
-    
-    // Get all sensors with their types
-    $sql = "SELECT sensorID, type, location FROM Iot_Sensor_T ORDER BY sensorID ASC";
+    // The energyType already recorded against a sensor wins over the sensor's
+    // declared type: it is what the existing rows for that sensor use, so the
+    // add form pre-fills with a value consistent with its history.
+    $sql = "SELECT s.sensorID,
+                   s.type AS declaredType,
+                   COALESCE(NULLIF(s.location, ''), s.road, '') AS location,
+                   (SELECT e.energyType
+                      FROM Energy_Consumption_Data_T e
+                     WHERE e.sensorID = s.sensorID
+                     ORDER BY e.timestamp DESC
+                     LIMIT 1) AS recordedType
+            FROM Iot_Sensor_T s
+            ORDER BY s.sensorID ASC";
+
     $stmt = $pdo->query($sql);
     $sensors = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Process sensor types to map to energy types
+
     $processedSensors = [];
     foreach ($sensors as $sensor) {
-        $type = strtolower($sensor['type']);
-        $energyType = '';
-        
-        // Map sensor type to energy type
-        if (strpos($type, 'electricity') !== false || strpos($type, 'electric') !== false) {
-            $energyType = 'Electricity';
-        } elseif (strpos($type, 'water') !== false) {
-            $energyType = 'Water';
-        } elseif (strpos($type, 'gas') !== false) {
-            $energyType = 'Gas';
+        $energyType = $sensor['recordedType']
+            ? map_energy_type($sensor['recordedType'])
+            : map_energy_type($sensor['declaredType']);
+
+        if ($energyType === '') {
+            continue;
         }
-        
-        // Only include sensors that match energy types
-        if ($energyType) {
-            $processedSensors[] = [
-                'sensorID' => $sensor['sensorID'],
-                'type' => $energyType,
-                'originalType' => $sensor['type'],
-                'location' => $sensor['location'] ?? ''
-            ];
-        }
-    }
-    
-    // If no energy sensors found, create sample data
-    if (empty($processedSensors)) {
-        $processedSensors = [
-            ['sensorID' => 1, 'type' => 'Electricity', 'originalType' => 'Electricity', 'location' => 'Building A'],
-            ['sensorID' => 2, 'type' => 'Water', 'originalType' => 'Water', 'location' => 'Building A'],
-            ['sensorID' => 3, 'type' => 'Gas', 'originalType' => 'Gas', 'location' => 'Building B'],
-            ['sensorID' => 4, 'type' => 'Electricity', 'originalType' => 'Electricity', 'location' => 'Building C'],
-            ['sensorID' => 5, 'type' => 'Water', 'originalType' => 'Water', 'location' => 'Building C']
+
+        $processedSensors[] = [
+            'sensorID'     => $sensor['sensorID'],
+            'type'         => $energyType,
+            'originalType' => $sensor['recordedType'] ?: $sensor['declaredType'],
+            'location'     => $sensor['location'],
         ];
     }
-    
+
     echo json_encode($processedSensors);
-    
 } catch (PDOException $e) {
-    http_response_code(500);
-    echo json_encode(['error' => $e->getMessage()]);
+    json_db_error($e);
 }
-?>

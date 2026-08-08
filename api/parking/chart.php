@@ -1,71 +1,48 @@
 <?php
-// api/parking/chart.php
-header("Content-Type: application/json");
-header("Access-Control-Allow-Origin: *");
-include_once '../../config.php';
+// api/parking/chart.php - Weekly confirmed-reservation revenue.
+require_once __DIR__ . '/../_guard.php';
+require_once __DIR__ . '/../../config.php';
+
+handle_preflight();
+require_auth();
 
 try {
-    // First, check if we have any Reserved reservations with amounts
-    $checkSql = "SELECT COUNT(*) as count FROM Reservation_T WHERE status = 'Reserved' AND amount IS NOT NULL AND amount > 0";
-    $checkStmt = $pdo->query($checkSql);
-    $checkResult = $checkStmt->fetch(PDO::FETCH_ASSOC);
-    
-    if ($checkResult['count'] == 0) {
-        echo json_encode([
-            'data' => [],
-            'message' => 'No revenue data available. Please create some reservations with amounts.',
-            'debug' => ['reserved_count' => 0]
-        ]);
-        exit();
-    }
-    
-    // Complete fix: All non-aggregated columns must be in GROUP BY
-    $sql = "SELECT 
-                YEAR(startTime) as year,
-                WEEK(startTime) as week_number,
-                SUM(amount) as total_revenue,
-                COUNT(*) as total_bookings,
-                MIN(startTime) as week_start
-            FROM Reservation_T 
+    // Group by YEARWEEK rather than by YEAR() plus WEEK(): around new year the
+    // two disagree, because a week that straddles the boundary carries a week
+    // number belonging to the other year and would be split into two points.
+    $sql = "SELECT
+                YEARWEEK(startTime, 3) as year_week,
+                WEEK(MIN(startTime), 3) as week_number,
+                SUM(amount)            as total_revenue,
+                COUNT(*)               as total_bookings,
+                MIN(startTime)         as week_start
+            FROM Reservation_T
             WHERE status = 'Reserved'
-                AND amount IS NOT NULL 
-                AND amount > 0
-            GROUP BY YEAR(startTime), WEEK(startTime)
-            ORDER BY year DESC, week_number DESC
+              AND amount IS NOT NULL
+              AND amount > 0
+            GROUP BY YEARWEEK(startTime, 3)
+            ORDER BY year_week DESC
             LIMIT 12";
-    
+
     $stmt = $pdo->query($sql);
     $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Format the data for the chart
+
+    // The query takes the twelve most recent weeks, so it reads newest first;
+    // the chart plots left to right in time order.
+    $data = array_reverse($data);
+
     $formattedData = [];
     foreach ($data as $row) {
         $weekStart = new DateTime($row['week_start']);
         $formattedData[] = [
-            'week_label' => 'Week ' . $row['week_number'] . ' (' . $weekStart->format('M d') . ')',
-            'total_revenue' => (float)$row['total_revenue'],
+            'week_label'     => 'Week ' . $row['week_number'] . ' (' . $weekStart->format('M d') . ')',
+            'total_revenue'  => (float)$row['total_revenue'],
             'total_bookings' => (int)$row['total_bookings'],
-            'week_number' => (int)$row['week_number']
+            'week_number'    => (int)$row['week_number']
         ];
     }
-    
-    // Reverse to show oldest to newest
-    $formattedData = array_reverse($formattedData);
-    
-    echo json_encode([
-        'data' => $formattedData,
-        'debug' => [
-            'total_weeks' => count($formattedData),
-            'sample' => !empty($formattedData) ? $formattedData[0] : null
-        ]
-    ]);
-    
+
+    echo json_encode(['data' => $formattedData]);
 } catch (PDOException $e) {
-    http_response_code(500);
-    echo json_encode([
-        'error' => $e->getMessage(),
-        'data' => [],
-        'debug' => 'SQL Error occurred'
-    ]);
+    json_db_error($e);
 }
-?>

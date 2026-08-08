@@ -13,6 +13,7 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
     <script src="chart-theme.js?v=20260808"></script>
+    <script src="auth-guard.js?v=20260808"></script>
     
     <style>
         /* Layout scaffolding only; appearance comes from styles.css */
@@ -32,7 +33,7 @@
         <a href="energy.html"><i class="fas fa-bolt me-2"></i> Energy Monitoring</a>
         <a href="pollution.html" class="active"><i class="fas fa-smog me-2"></i> Air Quality Monitoring</a>
         <a href="emergency.html"><i class="fas fa-ambulance me-2"></i> Emergency Response</a>
-        <a href="index.html" class="mt-auto" onclick="sessionStorage.removeItem('userRole');"><i class="fas fa-sign-out-alt me-2"></i> Logout</a>
+        <a href="index.html" class="mt-auto" data-logout><i class="fas fa-sign-out-alt me-2"></i> Logout</a>
     </div>
 
     <div class="main-content flex-grow-1">
@@ -219,9 +220,15 @@
 
 <!-- Application JS -->
 <script>
-    // Configuration
-    const userRole = sessionStorage.getItem('userRole') || 'admin'; // Default to admin for testing
+    // Configuration - role comes from auth-guard.js, which has already sent
+    // anyone without a session back to the login form. No 'admin' fallback:
+    // that previously gave the management UI to any unauthenticated visitor.
+    const userRole = SmartCity.userRole;
     const API_BASE = 'api/pollution';
+    // Road, area and air-quality text come from the database, so they are
+    // escaped before being spliced into the table markup.
+    const esc = SmartCity.escapeHTML;
+    const attrJSON = SmartCity.attrJSON;
     let pollutionData = [];
     let pollutionChart = null;
 
@@ -332,20 +339,20 @@
             html += `
                 <tr>
                     <td>
-                        <strong>${reading.sensorID}</strong><br>
-                        <small class="text-muted">${reading.road || 'N/A'}, ${reading.area || 'N/A'}</small>
+                        <strong>${esc(reading.sensorID)}</strong><br>
+                        <small class="text-muted">${esc(reading.road || 'N/A')}, ${esc(reading.area || 'N/A')}</small>
                     </td>
-                    <td>${timestamp}</td>
-                    <td><span class="badge rounded-pill ${aqiClass}">${airQuality || 'N/A'}</span></td>
+                    <td>${esc(timestamp)}</td>
+                    <td><span class="badge rounded-pill ${aqiClass}">${esc(airQuality || 'N/A')}</span></td>
                     <td>${noiseLevel}</td>
                     <td>${noXLevel}</td>
                     <td>${co2Level}</td>
                     <td>${pm25Level}</td>
                     <td class="action-buttons action-cell" style="display: ${userRole === 'admin' ? 'table-cell' : 'none'}">
-                        <button class="btn btn-sm btn-info text-white me-1" onclick="editReading(${reading.sensorID}, '${reading.timestamp}')" title="Edit">
+                        <button class="btn btn-sm btn-info text-white me-1" onclick='editReading(${attrJSON(reading.sensorID)}, ${attrJSON(reading.timestamp)})' title="Edit">
                             <i class="fas fa-edit me-1"></i> Edit
                         </button>
-                        <button class="btn btn-sm btn-danger" onclick="deleteReading(${reading.sensorID}, '${reading.timestamp}')" title="Delete">
+                        <button class="btn btn-sm btn-danger" onclick='deleteReading(${attrJSON(reading.sensorID)}, ${attrJSON(reading.timestamp)})' title="Delete">
                             <i class="fas fa-trash-alt me-1"></i> Delete
                         </button>
                     </td>
@@ -679,13 +686,6 @@
         
         if (editForm) {
             editForm.addEventListener('submit', updateReading);
-        }
-        
-        // For testing - set admin role if not set
-        if (!sessionStorage.getItem('userRole')) {
-            console.log('Setting default user role to admin for testing');
-            sessionStorage.setItem('userRole', 'admin');
-            location.reload();
         }
     });
 </script>

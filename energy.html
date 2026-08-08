@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="styles.css?v=20260808">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
     <script src="chart-theme.js?v=20260808"></script>
+    <script src="auth-guard.js?v=20260808"></script>
     <style>
         /* Layout scaffolding only; appearance comes from styles.css */
         .sidebar { min-width: 250px; max-width: 250px; flex-shrink: 0; }
@@ -31,7 +32,7 @@
         <a href="energy.html" class="active"><i class="fas fa-bolt me-2"></i> Energy Monitoring</a>
         <a href="pollution.html"><i class="fas fa-smog me-2"></i> Air Quality Monitoring</a>
         <a href="emergency.html"><i class="fas fa-ambulance me-2"></i> Emergency Response</a>
-        <a href="index.html" class="mt-auto" onclick="sessionStorage.removeItem('userRole');"><i class="fas fa-sign-out-alt me-2"></i> Logout</a>
+        <a href="index.html" class="mt-auto" data-logout><i class="fas fa-sign-out-alt me-2"></i> Logout</a>
     </div>
 
     <div class="main-content flex-grow-1">
@@ -109,8 +110,10 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Timestamp *</label>
-                        <input type="datetime-local" id="addTime" class="form-control" required 
-                            max="<?php echo date('Y-m-d\TH:i'); ?>">
+                        <!-- max is set to local "now" by setMaxDates(); this is a .html file, so a
+                             PHP tag here was served to the browser verbatim and produced an
+                             unparsable max attribute. -->
+                        <input type="datetime-local" id="addTime" class="form-control" required>
                     </div>
 
                     <div class="mb-3">
@@ -119,8 +122,7 @@
                     </div>
                     <div class="mb-3">
     <label class="form-label">Last Recharged Date *</label>
-    <input type="date" id="addRecDate" class="form-control" required 
-           max="<?php echo date('Y-m-d'); ?>">
+    <input type="date" id="addRecDate" class="form-control" required>
 </div>
                     <div class="mb-3">
                         <label class="form-label">Last Recharged Amount *</label>
@@ -164,8 +166,7 @@
                     </div>
                    <div class="mb-3">
     <label class="form-label">Timestamp *</label>
-    <input type="datetime-local" id="editTime" class="form-control" required 
-           max="<?php echo date('Y-m-d\TH:i'); ?>">
+    <input type="datetime-local" id="editTime" class="form-control" required>
 </div>
                     <div class="mb-3">
                         <label class="form-label">Total Consumed Unit *</label>
@@ -173,8 +174,7 @@
                     </div>
                    <div class="mb-3">
     <label class="form-label">Last Recharged Date *</label>
-    <input type="date" id="editRecDate" class="form-control" required 
-           max="<?php echo date('Y-m-d'); ?>">
+    <input type="date" id="editRecDate" class="form-control" required>
 </div>
                     <div class="mb-3">
                         <label class="form-label">Last Recharged Amount *</label>
@@ -193,14 +193,17 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     const API_PATH = 'api/energy';
-    let userRole = sessionStorage.getItem('userRole') || 'admin';
+    // Supplied by auth-guard.js; no 'admin' fallback, which previously gave
+    // the management UI to anyone opening the page without logging in.
+    const userRole = SmartCity.userRole;
+    // Database text is escaped before it goes into the table markup.
+    const esc = SmartCity.escapeHTML;
+    const attrJSON = SmartCity.attrJSON;
 
-    document.addEventListener('DOMContentLoaded', () => {
-        applyRolePermissions();
-        loadDropdowns();
-        loadReadings();
-        loadChart();
-    });
+    // Page start-up lives in the single listener further down. A duplicate of
+    // it used to sit here, so every load fetched the readings, the dropdowns
+    // and the chart twice, and registered the sensor-change handlers twice
+    // over.
 
     function applyRolePermissions() {
         const btnAdd = document.getElementById('btnAdd');
@@ -246,20 +249,20 @@
                 if(userRole === 'admin') {
                     actions = `
                         <div class="action-buttons">
-                            <button class="btn btn-sm btn-info text-white me-1" onclick='openEdit(${JSON.stringify(row)})'><i class="fas fa-edit me-1"></i> Edit</button>
-                            <button class="btn btn-sm btn-danger" onclick="deleteRec('${row.sensorID}', '${row.timestamp}')"><i class="fas fa-trash-alt me-1"></i> Delete</button>
+                            <button class="btn btn-sm btn-info text-white me-1" onclick='openEdit(${attrJSON(row)})'><i class="fas fa-edit me-1"></i> Edit</button>
+                            <button class="btn btn-sm btn-danger" onclick='deleteRec(${attrJSON(row.sensorID)}, ${attrJSON(row.timestamp)})'><i class="fas fa-trash-alt me-1"></i> Delete</button>
                         </div>
                     `;
                 }
 
                 return `
                 <tr>
-                    <td><strong>${row.sensorID}</strong></td>
-                    <td>${row.energyType}</td>
-                    <td>${row.timestamp}</td>
-                    <td>${row.totalConsumedUnit} <b>${unitSuffix}</b></td>
-                    <td>${row.lastRechargedDate}</td>
-                    <td>${row.lastRechargedAmount}</td>
+                    <td><strong>${esc(row.sensorID)}</strong></td>
+                    <td>${esc(row.energyType)}</td>
+                    <td>${esc(row.timestamp)}</td>
+                    <td>${esc(row.totalConsumedUnit)} <b>${unitSuffix}</b></td>
+                    <td>${esc(row.lastRechargedDate)}</td>
+                    <td>${esc(row.lastRechargedAmount)}</td>
                     <td>${actions}</td>
                 </tr>
                 `;
@@ -272,8 +275,8 @@
     const data = await res.json();
     
     // Create dropdown options with sensor type info
-    const opts = data.map(s => 
-        `<option value="${s.sensorID}" data-type="${s.type}">Sensor ${s.sensorID} (${s.originalType || s.type})</option>`
+    const opts = data.map(s =>
+        `<option value="${esc(s.sensorID)}" data-type="${esc(s.type)}">Sensor ${esc(s.sensorID)} (${esc(s.originalType || s.type)})</option>`
     ).join('');
     
     document.getElementById('addSensor').innerHTML = opts;
@@ -447,11 +450,24 @@ function setupSensorChangeListeners() {
             row.style.display = row.textContent.toLowerCase().includes(filter) ? "" : "none";
         }
     }
-    function setMaxDates() {
-    const now = new Date();
-    const currentDateTime = now.toISOString().slice(0, 16);
-    const currentDate = now.toISOString().split('T')[0];
-    
+    /* Local "now", formatted for datetime-local / date inputs.
+   toISOString() converts to UTC first, so east of Greenwich the max attribute
+   landed hours in the past and the browser rejected perfectly valid recent
+   timestamps. The inputs are local time, so the bound has to be local too. */
+function localDateTimeValue(date = new Date()) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+           `T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function localDateValue(date = new Date()) {
+    return localDateTimeValue(date).split('T')[0];
+}
+
+function setMaxDates() {
+    const currentDateTime = localDateTimeValue();
+    const currentDate = localDateValue();
+
     // Set max for Add Modal
     document.getElementById('addTime').max = currentDateTime;
     document.getElementById('addRecDate').max = currentDate;
@@ -467,8 +483,7 @@ document.getElementById('addModal').addEventListener('show.bs.modal', setMaxDate
 // Call when Edit Modal is shown
 document.getElementById('editModal').addEventListener('show.bs.modal', setMaxDates);
 
-// Also call on page load
-document.addEventListener('DOMContentLoaded', setMaxDates);
+// On page load setMaxDates runs from the start-up listener below.
 
 function setupDateValidations() {
     // Add form validations
@@ -534,13 +549,14 @@ function showTooltip(input, message) {
     input.parentNode.appendChild(tooltip);
 }
 
-// Call this in DOMContentLoaded
+// Single page start-up path.
 document.addEventListener('DOMContentLoaded', () => {
     applyRolePermissions();
     loadDropdowns();
     loadReadings();
     loadChart();
-    setupDateValidations(); // Add this line
+    setupDateValidations();
+    setMaxDates();
 });
 
     async function apiCall(url, method, body) {

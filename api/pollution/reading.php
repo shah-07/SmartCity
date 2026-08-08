@@ -1,60 +1,60 @@
 <?php
-// api/pollution/reading.php
-header("Content-Type: application/json");
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, PUT, DELETE, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
-include_once '../../config.php';
+// api/pollution/reading.php - Read, update or delete one reading, keyed by
+// (sensorID, timestamp).
+require_once __DIR__ . '/../_guard.php';
+require_once __DIR__ . '/../../config.php';
+
+handle_preflight();
+require_auth();
 
 $method = $_SERVER['REQUEST_METHOD'];
 
-// Handle preflight requests
-if ($method == 'OPTIONS') {
-    http_response_code(200);
-    exit();
-}
-
-$sensorID = isset($_GET['sensorID']) ? $_GET['sensorID'] : null;
-$timestamp = isset($_GET['timestamp']) ? $_GET['timestamp'] : null;
+$sensorID  = $_GET['sensorID']  ?? null;
+$timestamp = $_GET['timestamp'] ?? null;
 
 switch ($method) {
     case 'GET':
-        if ($sensorID && $timestamp) {
-            try {
-                $query = "SELECT * FROM Pollution_Data_T 
-                          WHERE sensorID = ? AND timestamp = ?";
-                $stmt = $pdo->prepare($query);
-                $stmt->execute([$sensorID, $timestamp]);
-                $result = $stmt->fetch(PDO::FETCH_ASSOC);
-                
-                if ($result) {
-                    echo json_encode($result);
-                } else {
-                    http_response_code(404);
-                    echo json_encode(["error" => "Reading not found"]);
-                }
-            } catch(PDOException $e) {
-                http_response_code(500);
-                echo json_encode(["error" => $e->getMessage()]);
+        if (!$sensorID || !$timestamp) {
+            json_fail(400, 'sensorID and timestamp are required');
+        }
+        try {
+            $query = "SELECT * FROM Pollution_Data_T WHERE sensorID = ? AND timestamp = ?";
+            $stmt = $pdo->prepare($query);
+            $stmt->execute([$sensorID, $timestamp]);
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($result) {
+                echo json_encode($result);
+            } else {
+                json_fail(404, 'Reading not found');
             }
-        } else {
-            http_response_code(400);
-            echo json_encode(["error" => "sensorID and timestamp are required"]);
+        } catch (PDOException $e) {
+            json_db_error($e);
         }
         break;
-        
+
     case 'PUT':
+        require_admin();
         try {
             $data = json_decode(file_get_contents("php://input"), true);
-            
-            $query = "UPDATE Pollution_Data_T SET 
+            if (!is_array($data)) {
+                json_fail(400, 'Invalid JSON body');
+            }
+
+            if (!isset($data['sensorID'], $data['timestamp'])) {
+                json_fail(400, 'sensorID and timestamp are required');
+            }
+
+            // sensorID and timestamp form the key, so they identify the row
+            // rather than being updated.
+            $query = "UPDATE Pollution_Data_T SET
                       airQuality = ?,
                       noiseLevel = ?,
-                      pm25Level = ?,
-                      noXLevel = ?,
-                      co2Level = ?
+                      pm25Level  = ?,
+                      noXLevel   = ?,
+                      co2Level   = ?
                       WHERE sensorID = ? AND timestamp = ?";
-            
+
             $stmt = $pdo->prepare($query);
             $stmt->execute([
                 $data['airQuality'],
@@ -65,45 +65,37 @@ switch ($method) {
                 $data['sensorID'],
                 $data['timestamp']
             ]);
-            
+
             if ($stmt->rowCount() > 0) {
                 echo json_encode(["message" => "Reading updated successfully"]);
             } else {
                 echo json_encode(["message" => "No changes made or record not found"]);
             }
-        } catch(PDOException $e) {
-            http_response_code(500);
-            echo json_encode(["error" => $e->getMessage()]);
+        } catch (PDOException $e) {
+            json_db_error($e);
         }
         break;
-        
+
     case 'DELETE':
-        if ($sensorID && $timestamp) {
-            try {
-                $query = "DELETE FROM Pollution_Data_T 
-                          WHERE sensorID = ? AND timestamp = ?";
-                $stmt = $pdo->prepare($query);
-                $stmt->execute([$sensorID, $timestamp]);
-                
-                if ($stmt->rowCount() > 0) {
-                    echo json_encode(["message" => "Reading deleted successfully"]);
-                } else {
-                    http_response_code(404);
-                    echo json_encode(["error" => "Reading not found"]);
-                }
-            } catch(PDOException $e) {
-                http_response_code(500);
-                echo json_encode(["error" => $e->getMessage()]);
+        require_admin();
+        if (!$sensorID || !$timestamp) {
+            json_fail(400, 'sensorID and timestamp are required');
+        }
+        try {
+            $query = "DELETE FROM Pollution_Data_T WHERE sensorID = ? AND timestamp = ?";
+            $stmt = $pdo->prepare($query);
+            $stmt->execute([$sensorID, $timestamp]);
+
+            if ($stmt->rowCount() > 0) {
+                echo json_encode(["message" => "Reading deleted successfully"]);
+            } else {
+                json_fail(404, 'Reading not found');
             }
-        } else {
-            http_response_code(400);
-            echo json_encode(["error" => "sensorID and timestamp are required"]);
+        } catch (PDOException $e) {
+            json_db_error($e);
         }
         break;
-        
+
     default:
-        http_response_code(405);
-        echo json_encode(['error' => 'Method not allowed']);
-        break;
+        json_fail(405, 'Method not allowed');
 }
-?>

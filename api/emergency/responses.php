@@ -1,19 +1,13 @@
 <?php
 // api/emergency/responses.php
-header("Content-Type: application/json");
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
-include_once '../../config.php';
+require_once __DIR__ . '/../_guard.php';
+require_once __DIR__ . '/../../config.php';
+
+handle_preflight();
+require_auth();
 
 $method = $_SERVER['REQUEST_METHOD'];
-$input = json_decode(file_get_contents("php://input"));
-
-// Handle preflight requests
-if ($method == 'OPTIONS') {
-    http_response_code(200);
-    exit();
-}
+$input  = json_decode(file_get_contents("php://input"));
 
 try {
     if ($method === 'GET') {
@@ -39,57 +33,67 @@ try {
                 $row['performance'] = 'Delayed';
             }
         }
+        unset($row);
+
         echo json_encode($data);
-    } 
+    }
     elseif ($method === 'POST') {
+        require_admin();
+
         $pdo->beginTransaction();
-        
-        // Insert response
-        $stmt = $pdo->prepare("INSERT INTO Response_Times_T (incidentID, registrationNumber, dispatchTime, arrivalTime, completionTime, outcome) 
+
+        $stmt = $pdo->prepare("INSERT INTO Response_Times_T (incidentID, registrationNumber, dispatchTime, arrivalTime, completionTime, outcome)
                                VALUES (?, ?, ?, ?, ?, 'Resolved')");
         $stmt->execute([
-            $input->incidentID, 
-            $input->registrationNumber, 
-            $input->dispatchTime, 
-            $input->arrivalTime, 
+            $input->incidentID,
+            $input->registrationNumber,
+            $input->dispatchTime,
+            $input->arrivalTime,
             $input->completionTime
         ]);
-        
-        // Update incident to Resolved
-        $pdo->prepare("UPDATE Incident_T SET status='Resolved' WHERE incidentID=?")->execute([$input->incidentID]);
-        
-        // Free the vehicle
-        $pdo->prepare("UPDATE Emergency_Vehicle_T SET status='Available', assignedIncidentID=NULL WHERE registrationNumber=?")->execute([$input->registrationNumber]);
-        
+
+        // Logging a completed response closes the incident and releases the
+        // vehicle; all three must land together or none of them.
+        $pdo->prepare("UPDATE Incident_T SET status='Resolved' WHERE incidentID=?")
+            ->execute([$input->incidentID]);
+
+        $pdo->prepare("UPDATE Emergency_Vehicle_T SET status='Available', assignedIncidentID=NULL WHERE registrationNumber=?")
+            ->execute([$input->registrationNumber]);
+
         $pdo->commit();
         echo json_encode(['message' => 'Response logged successfully']);
     }
     elseif ($method === 'PUT') {
+        require_admin();
+
         $stmt = $pdo->prepare("UPDATE Response_Times_T SET incidentID=?, registrationNumber=?, dispatchTime=?, arrivalTime=?, completionTime=? WHERE responseID=?");
         $stmt->execute([
-            $input->incidentID, 
-            $input->registrationNumber, 
-            $input->dispatchTime, 
-            $input->arrivalTime, 
-            $input->completionTime, 
+            $input->incidentID,
+            $input->registrationNumber,
+            $input->dispatchTime,
+            $input->arrivalTime,
+            $input->completionTime,
             $input->responseID
         ]);
         echo json_encode(['message' => 'Response updated successfully']);
     }
     elseif ($method === 'DELETE') {
+        require_admin();
+
         $id = $_GET['id'] ?? null;
         if (!$id) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Response ID required']);
-            exit();
+            json_fail(400, 'Response ID required');
         }
         $stmt = $pdo->prepare("DELETE FROM Response_Times_T WHERE responseID = ?");
         $stmt->execute([$id]);
         echo json_encode(['message' => 'Response deleted successfully']);
     }
+    else {
+        json_fail(405, 'Method not allowed');
+    }
 } catch (PDOException $e) {
-    if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
-    http_response_code(500);
-    echo json_encode(['error' => $e->getMessage()]);
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    json_db_error($e);
 }
-?>

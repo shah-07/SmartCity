@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
     <script src="chart-theme.js?v=20260808"></script>
+    <script src="auth-guard.js?v=20260808"></script>
     <link rel="stylesheet" href="styles.css?v=20260808"> 
     <style>
         /* Layout scaffolding only; appearance comes from styles.css */
@@ -25,7 +26,7 @@
         <a href="energy.html"><i class="fas fa-bolt me-2"></i> Energy Monitoring</a>
         <a href="pollution.html"><i class="fas fa-smog me-2"></i> Air Quality Monitoring</a>
         <a href="emergency.html"><i class="fas fa-ambulance me-2"></i> Emergency Response</a>
-        <a href="index.html" class="mt-auto" onclick="sessionStorage.removeItem('userRole');"><i class="fas fa-sign-out-alt me-2"></i> Logout</a>
+        <a href="index.html" class="mt-auto" data-logout><i class="fas fa-sign-out-alt me-2"></i> Logout</a>
     </div>
 
     <div class="main-content flex-grow-1">
@@ -133,8 +134,13 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     const API_PATH = 'api/traffic';
-    const userRole = sessionStorage.getItem('userRole');
-    const isCitizen = userRole === 'citizen';
+    // Supplied by auth-guard.js, which redirects when there is no session.
+    const userRole = SmartCity.userRole;
+    const isCitizen = SmartCity.isCitizen;
+    // Location text comes from the database, so it is escaped before it goes
+    // into the table markup.
+    const esc = SmartCity.escapeHTML;
+    const attrJSON = SmartCity.attrJSON;
     let chartInstance = null;
 
 
@@ -243,7 +249,7 @@ if (r.numberOfRoadAccidents >= 3 && r.numberOfRoadAccidents <= 5) {
                 let btns = '';
                 if (!isCitizen) {
                     btns = `
-                        <button class="btn btn-sm btn-info text-white me-1 edit-btn" onclick='openEditModal(${JSON.stringify(r)})'><i class="fas fa-edit"></i> Edit</button>
+                        <button class="btn btn-sm btn-info text-white me-1 edit-btn" onclick='openEditModal(${attrJSON(r)})'><i class="fas fa-edit"></i> Edit</button>
                         <button class="btn btn-sm btn-danger delete-btn" onclick="deleteRecord(${r.recordID})"><i class="fas fa-trash-alt"></i> Delete</button>
                     `;
                 }
@@ -252,10 +258,10 @@ if (r.numberOfRoadAccidents >= 3 && r.numberOfRoadAccidents <= 5) {
                     <tr class="${rowClass}">
                         <td>${r.recordID}</td>
                         <td>${r.sensorID}</td>
-                        <td>${r.location}</td>
-                        <td>${r.timestamp}</td>
+                        <td>${esc(r.location)}</td>
+                        <td>${esc(r.timestamp)}</td>
                         <td>${r.trafficFlow}</td>
-                        <td><span class="badge bg-${getCongestionColor(r.congestionLevel)}">${r.congestionLevel}</span></td>
+                        <td><span class="badge bg-${getCongestionColor(r.congestionLevel)}">${esc(r.congestionLevel)}</span></td>
                         <td>${r.numberOfRoadAccidents}</td>
                         <td class="action-buttons">${btns}</td>
                     </tr>

@@ -1,75 +1,41 @@
 <?php
-// api/pollution/chart.php
-header("Content-Type: application/json");
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, OPTIONS");
-include_once '../../config.php';
+// api/pollution/chart.php - Daily pollutant averages for the last 7 days.
+require_once __DIR__ . '/../_guard.php';
+require_once __DIR__ . '/../../config.php';
 
-// Handle preflight requests
-if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
-    http_response_code(200);
-    exit();
+handle_preflight();
+require_auth();
+
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+    json_fail(405, 'Method not allowed');
 }
 
-if ($_SERVER['REQUEST_METHOD'] == 'GET') {
-    try {
-        // Check if table exists
-        $checkTable = $pdo->query("SHOW TABLES LIKE 'Pollution_Data_T'");
-        if ($checkTable->rowCount() == 0) {
-            echo json_encode([]);
-            exit();
-        }
-        
-        // FIX: Use proper GROUP BY with only aggregated columns
-        $query = "
-            SELECT 
-                DATE(timestamp) as date,
-                AVG(pm25Level) as avg_pm25,
-                AVG(co2Level) as avg_co2,
-                AVG(noXLevel) as avg_nox,
-                COUNT(*) as readings_count
-            FROM Pollution_Data_T 
-            GROUP BY DATE(timestamp)
-            ORDER BY date DESC
-            LIMIT 7
-        ";
-        
-        $stmt = $pdo->prepare($query);
-        $stmt->execute();
-        $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        // Convert to proper numeric types
-        foreach ($result as &$row) {
-            $row['avg_pm25'] = (float)$row['avg_pm25'];
-            $row['avg_co2'] = (float)$row['avg_co2'];
-            $row['avg_nox'] = (float)$row['avg_nox'];
-            $row['readings_count'] = (int)$row['readings_count'];
-        }
-        
-        // If no data, return sample data for demo
-        if (empty($result)) {
-            $sampleData = [];
-            for ($i = 6; $i >= 0; $i--) {
-                $date = date('Y-m-d', strtotime("-$i days"));
-                $sampleData[] = [
-                    'date' => $date,
-                    'avg_pm25' => rand(10, 50) + (rand(0, 100) / 100),
-                    'avg_co2' => rand(350, 500) + (rand(0, 100) / 100),
-                    'avg_nox' => rand(10, 40) + (rand(0, 100) / 100),
-                    'readings_count' => rand(3, 8)
-                ];
-            }
-            echo json_encode($sampleData);
-        } else {
-            echo json_encode($result);
-        }
+try {
+    // DESC + LIMIT picks the seven most recent days; without the reversal
+    // afterwards the chart would run backwards along the x-axis.
+    $query = "SELECT
+                  DATE(timestamp) as date,
+                  AVG(pm25Level)  as avg_pm25,
+                  AVG(co2Level)   as avg_co2,
+                  AVG(noXLevel)   as avg_nox,
+                  COUNT(*)        as readings_count
+              FROM Pollution_Data_T
+              GROUP BY DATE(timestamp)
+              ORDER BY date DESC
+              LIMIT 7";
 
-    } catch (Exception $e) {
-        http_response_code(500);
-        echo json_encode(['error' => $e->getMessage()]);
+    $stmt = $pdo->query($query);
+    $result = array_reverse($stmt->fetchAll(PDO::FETCH_ASSOC));
+
+    foreach ($result as &$row) {
+        $row['avg_pm25']       = round((float)$row['avg_pm25'], 2);
+        $row['avg_co2']        = round((float)$row['avg_co2'], 2);
+        $row['avg_nox']        = round((float)$row['avg_nox'], 2);
+        $row['readings_count'] = (int)$row['readings_count'];
     }
-} else {
-    http_response_code(405);
-    echo json_encode(['error' => 'Method not allowed']);
+    unset($row);
+
+    echo json_encode($result);
+} catch (PDOException $e) {
+    json_db_error($e);
 }
-?>
