@@ -7,6 +7,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="stylesheet" href="styles.css?v=20260808">
+    <script src="auth-guard.js?v=20260808"></script>
     <style>
         /* Layout scaffolding kept exactly as-is; appearance comes from styles.css */
         .full-height-container {
@@ -40,7 +41,7 @@
         <a href="energy.html"><i class="fas fa-bolt me-2"></i> Energy Monitoring</a>
         <a href="pollution.html"><i class="fas fa-smog me-2"></i> Air Quality Monitoring</a>
         <a href="emergency.html"><i class="fas fa-ambulance me-2"></i> Emergency Response</a>
-        <a href="index.html" class="logout-link" onclick="sessionStorage.removeItem('userRole');"><i class="fas fa-sign-out-alt me-2"></i> Logout</a>
+        <a href="index.html" class="logout-link" data-logout><i class="fas fa-sign-out-alt me-2"></i> Logout</a>
     </div>
 
     <div class="main-content flex-grow-1">
@@ -124,6 +125,146 @@
                 </div>
             </div>
         </section>
+
+        <!-- ================================================================
+             SENSOR REGISTRY (admin only)
+             Iot_Sensor_T is shared by traffic, parking, air quality and
+             energy, so it is managed here rather than inside any one module.
+             The section is removed from the page entirely for citizens, and
+             the API refuses their writes regardless.
+             ============================================================= -->
+        <section id="sensorSection" class="mt-5" hidden>
+            <hr class="mb-4">
+            <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+                <div>
+                    <h2 class="mb-1"><i class="fas fa-microchip me-2 text-primary"></i>Sensor Registry</h2>
+                    <p class="text-muted mb-0">
+                        Shared by every module. A sensor's <strong>type</strong> decides where it appears —
+                        Camera, Induction Loop and Radar feed Traffic; Electricity, Water and Gas feed Energy.
+                    </p>
+                </div>
+                <button class="btn btn-success" id="btnAddSensor">
+                    <i class="fas fa-plus me-1"></i> Add New Sensor
+                </button>
+            </div>
+
+            <div class="d-flex justify-content-between mb-3 flex-wrap gap-2">
+                <div class="input-group" style="width: 350px;">
+                    <input type="text" class="form-control" id="searchSensor"
+                           placeholder="Search by location, road, area or type" aria-label="Search sensors">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                </div>
+                <span class="align-self-center text-muted small" id="sensorCount"></span>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Sensor ID</th>
+                            <th>Location</th>
+                            <th>Road</th>
+                            <th>Area</th>
+                            <th>Type</th>
+                            <th>Coordinates</th>
+                            <th>Installed</th>
+                            <th>Status</th>
+                            <th>In Use By</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sensorBody"></tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+</div>
+
+<!-- Add / Edit Sensor Modal -->
+<div class="modal fade" id="sensorModal" tabindex="-1" aria-labelledby="sensorModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="sensorModalLabel">Add New Sensor</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="sensorForm">
+                    <input type="hidden" id="sensorID">
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label" for="sensorLocation">Location *</label>
+                            <input type="text" class="form-control" id="sensorLocation" maxlength="100" required>
+                            <div class="form-text">Shown in the traffic and energy sensor dropdowns.</div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label" for="sensorType">Type *</label>
+                            <select class="form-select" id="sensorType" required>
+                                <option value="">Select a type...</option>
+                                <optgroup label="Traffic">
+                                    <option value="Camera">Camera</option>
+                                    <option value="Induction Loop">Induction Loop</option>
+                                    <option value="Radar">Radar</option>
+                                </optgroup>
+                                <optgroup label="Air Quality">
+                                    <option value="pollution">Pollution</option>
+                                </optgroup>
+                                <optgroup label="Energy">
+                                    <option value="Electricity">Electricity</option>
+                                    <option value="Water">Water</option>
+                                    <option value="Gas">Gas</option>
+                                </optgroup>
+                                <optgroup label="Parking">
+                                    <option value="Parking">Parking</option>
+                                </optgroup>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label" for="sensorRoad">Road</label>
+                            <input type="text" class="form-control" id="sensorRoad" maxlength="100">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label" for="sensorArea">Area</label>
+                            <input type="text" class="form-control" id="sensorArea" maxlength="100">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label" for="sensorLat">Latitude</label>
+                            <input type="number" step="any" min="-90" max="90" class="form-control" id="sensorLat">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label" for="sensorLng">Longitude</label>
+                            <input type="number" step="any" min="-180" max="180" class="form-control" id="sensorLng">
+                            <div class="form-text">Optional, but give both or neither — they place the map marker.</div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label" for="sensorInstalled">Installed Date</label>
+                            <input type="date" class="form-control" id="sensorInstalled">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label" for="sensorStatus">Status *</label>
+                            <select class="form-select" id="sensorStatus" required>
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                            </select>
+                            <div class="form-text">Inactive sensors stay in the records but stop being offered.</div>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary" id="sensorSubmit">Save Sensor</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -154,18 +295,213 @@
         }
     }
 
-    // Update logout link
-    document.querySelector('.logout-link').addEventListener('click', async function(e) {
-        e.preventDefault();
-        try {
-            await fetch('logout.php');
-            sessionStorage.clear();
-            window.location.href = 'index.html';
-        } catch (error) {
-            console.error('Logout error:', error);
-            sessionStorage.clear();
-            window.location.href = 'index.html';
+    // The logout link is wired by auth-guard.js, which also ends the PHP
+    // session rather than only clearing sessionStorage.
+
+    /* ====================================================================
+       SENSOR REGISTRY (admin only)
+       ==================================================================== */
+    const SENSOR_API = 'api/sensors/sensors.php';
+    const esc = SmartCity.escapeHTML;
+    const attrJSON = SmartCity.attrJSON;
+    let sensorModal = null;
+
+    /** Reveals the section only for admins. Citizens never receive the markup. */
+    function applySensorAccess() {
+        const section = document.getElementById('sensorSection');
+        if (!section) return;
+
+        if (SmartCity.isAdmin) {
+            section.hidden = false;
+            loadSensors();
+        } else {
+            // Removed outright rather than hidden, so the controls are not
+            // sitting in the DOM waiting to be un-hidden from the console.
+            section.remove();
+            document.getElementById('sensorModal')?.remove();
         }
+    }
+
+    async function loadSensors() {
+        const tbody = document.getElementById('sensorBody');
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-3">Loading sensors...</td></tr>';
+
+        try {
+            const res = await fetch(SENSOR_API);
+            const data = await res.json();
+
+            if (data.error) {
+                tbody.innerHTML = `<tr><td colspan="10" class="text-center text-danger py-3">${esc(data.error)}</td></tr>`;
+                return;
+            }
+
+            if (!Array.isArray(data) || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-3">No sensors registered yet.</td></tr>';
+                document.getElementById('sensorCount').textContent = '';
+                return;
+            }
+
+            tbody.innerHTML = data.map(s => {
+                // What depends on this sensor, so the admin can see at a glance
+                // why a delete may be refused.
+                const uses = [];
+                if (s.trafficRecords    > 0) uses.push(`Traffic (${s.trafficRecords})`);
+                if (s.parkingSpots      > 0) uses.push(`Parking (${s.parkingSpots})`);
+                if (s.pollutionReadings > 0) uses.push(`Air (${s.pollutionReadings})`);
+                if (s.energyReadings    > 0) uses.push(`Energy (${s.energyReadings})`);
+                const inUse = uses.length
+                    ? uses.map(u => `<span class="badge bg-secondary me-1">${esc(u)}</span>`).join('')
+                    : '<span class="text-muted small">Unused</span>';
+
+                const coords = (s.latitude !== null && s.longitude !== null)
+                    ? `${Number(s.latitude).toFixed(4)}, ${Number(s.longitude).toFixed(4)}`
+                    : '<span class="text-muted">-</span>';
+
+                const statusBadge = s.status === 'active' ? 'bg-success' : 'bg-secondary';
+
+                return `
+                    <tr>
+                        <td><strong>${esc(s.sensorID)}</strong></td>
+                        <td>${esc(s.location)}</td>
+                        <td>${esc(s.road || '-')}</td>
+                        <td>${esc(s.area || '-')}</td>
+                        <td><span class="badge bg-info text-dark">${esc(s.type || '-')}</span></td>
+                        <td class="small">${coords}</td>
+                        <td class="small">${esc(s.installed_date || '-')}</td>
+                        <td><span class="badge ${statusBadge}">${esc(s.status)}</span></td>
+                        <td>${inUse}</td>
+                        <td class="text-nowrap">
+                            <button class="btn btn-sm btn-info text-white me-1" onclick='openEditSensor(${attrJSON(s)})'>
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick='deleteSensor(${attrJSON(s.sensorID)}, ${attrJSON(s.location)})'>
+                                <i class="fas fa-trash-alt"></i> Delete
+                            </button>
+                        </td>
+                    </tr>`;
+            }).join('');
+
+            document.getElementById('sensorCount').textContent =
+                `${data.length} sensor${data.length === 1 ? '' : 's'} registered`;
+
+        } catch (error) {
+            console.error('Error loading sensors:', error);
+            tbody.innerHTML = '<tr><td colspan="10" class="text-center text-danger py-3">Could not load sensors.</td></tr>';
+        }
+    }
+
+    function openAddSensor() {
+        document.getElementById('sensorForm').reset();
+        document.getElementById('sensorID').value = '';
+        document.getElementById('sensorModalLabel').textContent = 'Add New Sensor';
+        document.getElementById('sensorStatus').value = 'active';
+        // A sensor cannot have been installed in the future; bound in local
+        // time, since toISOString() would shift the limit by the UTC offset.
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        document.getElementById('sensorInstalled').max =
+            `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+        sensorModal.show();
+    }
+
+    window.openEditSensor = (s) => {
+        document.getElementById('sensorForm').reset();
+        document.getElementById('sensorModalLabel').textContent = `Edit Sensor ${s.sensorID}`;
+        document.getElementById('sensorID').value = s.sensorID;
+        document.getElementById('sensorLocation').value = s.location || '';
+        document.getElementById('sensorRoad').value = s.road || '';
+        document.getElementById('sensorArea').value = s.area || '';
+        document.getElementById('sensorType').value = s.type || '';
+        document.getElementById('sensorLat').value = s.latitude ?? '';
+        document.getElementById('sensorLng').value = s.longitude ?? '';
+        document.getElementById('sensorInstalled').value = s.installed_date || '';
+        document.getElementById('sensorStatus').value = s.status || 'active';
+        sensorModal.show();
+    };
+
+    window.deleteSensor = async (id, location) => {
+        if (!confirm(`Delete sensor ${id} (${location})?\n\nIf it already has traffic, parking, air quality or energy data attached, the delete will be refused — set it to inactive instead.`)) {
+            return;
+        }
+
+        try {
+            const res = await fetch(`${SENSOR_API}?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+            const result = await res.json();
+
+            if (result.error) {
+                alert(result.error);
+            } else {
+                alert('Sensor deleted successfully.');
+                loadSensors();
+            }
+        } catch (error) {
+            console.error('Error deleting sensor:', error);
+            alert('Could not delete the sensor. Please try again.');
+        }
+    };
+
+    async function submitSensor(event) {
+        event.preventDefault();
+
+        const id = document.getElementById('sensorID').value;
+        const btn = document.getElementById('sensorSubmit');
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Saving...';
+
+        const body = {
+            location:       document.getElementById('sensorLocation').value.trim(),
+            road:           document.getElementById('sensorRoad').value.trim(),
+            area:           document.getElementById('sensorArea').value.trim(),
+            type:           document.getElementById('sensorType').value,
+            latitude:       document.getElementById('sensorLat').value,
+            longitude:      document.getElementById('sensorLng').value,
+            installed_date: document.getElementById('sensorInstalled').value,
+            status:         document.getElementById('sensorStatus').value
+        };
+        if (id) body.sensorID = id;
+
+        try {
+            const res = await fetch(SENSOR_API, {
+                method: id ? 'PUT' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const result = await res.json();
+
+            if (result.error) {
+                alert(result.error);
+                return;
+            }
+
+            sensorModal.hide();
+            loadSensors();
+            alert(id ? 'Sensor updated successfully.' : 'Sensor added successfully.');
+        } catch (error) {
+            console.error('Error saving sensor:', error);
+            alert('Could not save the sensor. Please try again.');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+
+    function filterSensors() {
+        const term = document.getElementById('searchSensor').value.toLowerCase();
+        document.querySelectorAll('#sensorBody tr').forEach(row => {
+            row.style.display = row.textContent.toLowerCase().includes(term) ? '' : 'none';
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const modalEl = document.getElementById('sensorModal');
+        if (modalEl) sensorModal = new bootstrap.Modal(modalEl);
+
+        document.getElementById('btnAddSensor')?.addEventListener('click', openAddSensor);
+        document.getElementById('sensorForm')?.addEventListener('submit', submitSensor);
+        document.getElementById('searchSensor')?.addEventListener('input', filterSensors);
+
+        applySensorAccess();
     });
 
     // Check authentication when page loads
