@@ -137,6 +137,34 @@
     return hit || value;
   }
 
+  /* "#rrggbb" or "rgb(a)(...)" -> "r,g,b"; anything else is left alone */
+  function toRgb(color) {
+    var hex = color.match(/^#([0-9a-f]{6})$/i);
+    if (hex) {
+      return parseInt(hex[1].slice(0, 2), 16) + ',' +
+             parseInt(hex[1].slice(2, 4), 16) + ',' +
+             parseInt(hex[1].slice(4, 6), 16);
+    }
+    var fn = color.match(/^rgba?\((\d+),(\d+),(\d+)/);
+    return fn ? fn[1] + ',' + fn[2] + ',' + fn[3] : null;
+  }
+
+  /* Bars read as lit glass columns rather than flat blocks of colour */
+  function barFade(chart, color) {
+    var area = chart.chartArea;
+    if (!area || !area.bottom) return color;
+    var rgb = toRgb(color);
+    if (!rgb) return color;
+    try {
+      var g = chart.ctx.createLinearGradient(0, area.top, 0, area.bottom);
+      g.addColorStop(0, 'rgba(' + rgb + ',0.92)');
+      g.addColorStop(1, 'rgba(' + rgb + ',0.26)');
+      return g;
+    } catch (e) {
+      return color;
+    }
+  }
+
   /* Fills read as depth rather than a flat wash */
   function verticalFade(chart, rgba) {
     var area = chart.chartArea;
@@ -171,8 +199,16 @@
     },
     afterLayout: function (chart) {
       (chart.data.datasets || []).forEach(function (ds) {
-        if (!ds.fill) return;
         if (typeof ds.backgroundColor !== 'string') return;
+
+        /* Bar series get the same depth treatment as area fills. Multi-colour
+           series (arrays, e.g. doughnuts) keep their per-segment colours. */
+        if ((ds.type || chart.config.type) === 'bar') {
+          ds.backgroundColor = barFade(chart, ds.backgroundColor);
+          return;
+        }
+
+        if (!ds.fill) return;
         if (ds.backgroundColor.indexOf('rgba') !== 0) return;
         ds.backgroundColor = verticalFade(chart, ds.backgroundColor);
       });

@@ -1,0 +1,28 @@
+# ---------------------------------------------------------------------------
+# SMART CITY PORTAL — ASSET CACHING
+#
+# The browser must never reuse a stale copy of the UI layer. "no-cache" does
+# not mean "do not store": the browser keeps the file but has to revalidate
+# it against the server before using it. Apache answers an unchanged file
+# with a 304, so reloads stay fast while an edit to styles.css or
+# chart-theme.js always shows up on a normal reload.
+#
+# Both blocks are guarded, so this file stays inert (rather than throwing a
+# 500) if mod_headers or mod_expires is not enabled.
+# ---------------------------------------------------------------------------
+
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html|css|js)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+    Header unset Expires
+    Header unset Pragma
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/html                "access plus 0 seconds"
+  ExpiresByType text/css                 "access plus 0 seconds"
+  ExpiresByType application/javascript   "access plus 0 seconds"
+  ExpiresByType text/javascript          "access plus 0 seconds"
+</IfModule>

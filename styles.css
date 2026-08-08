@@ -429,7 +429,8 @@ hr {
 .table-section::after,
 .main-content section.bg-white::after,
 .main-content section.border.rounded::after,
-.card::after {
+.card::after,
+.login-container::after {
   content: "";
   position: absolute;
   top: 0;
@@ -1310,7 +1311,21 @@ canvas { position: relative; z-index: 1; }
 .login-container {
   padding: 2.6rem 2.4rem !important;
   border-radius: var(--sc-r-xl) !important;
-  box-shadow: var(--sc-lift-3) !important;
+  /* Ambient light pools behind the panel so it reads as a suspended layer
+     rather than a box drawn on the background */
+  box-shadow: var(--sc-lift-3),
+              0 0 0 1px rgba(var(--sc-cyan-rgb), 0.07),
+              0 44px 120px -44px rgba(var(--sc-cyan-rgb), 0.34) !important;
+  -webkit-backdrop-filter: blur(var(--sc-blur-heavy)) saturate(160%);
+  backdrop-filter: blur(var(--sc-blur-heavy)) saturate(160%);
+}
+
+/* Soft blurred light source behind the panel — the login page has no other
+   content to establish depth against the environment */
+.login-container::before {
+  background:
+    radial-gradient(130% 68% at 14% -16%, rgba(255, 255, 255, 0.10), transparent 58%),
+    radial-gradient(96% 58% at 92% 110%, rgba(var(--sc-cyan-rgb), 0.085), transparent 62%);
 }
 
 .login-container .header-text {
